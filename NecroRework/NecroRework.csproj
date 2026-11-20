@@ -40,6 +40,9 @@
   <ItemGroup>
     <None Include="NecroRework.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="localization\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="die_for_you_icon.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="look_back.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="touch.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

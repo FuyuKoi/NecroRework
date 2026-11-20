@@ -63,8 +63,14 @@ internal static class PatchInstaller
             harmony.Patch(onUpgrade, prefix: upgradePrefix);
         }
 
-        // 自制能力的图标重定向
+        // 自制能力的图标重定向 + 为你而死的自定义图标
         PowerIcons.Install(harmony);
+        // 奥斯提血条 75% 不透明度
+        OstyHpBar.Install(harmony);
+        // 攻击意图数字后追加「（x）」：格挡 + 奥斯提减伤后玩家实际会掉的伤害
+        IntentPreview.Install(harmony);
+        // 自制卡牌的卡图替换
+        CardArt.Install(harmony);
 
         Main.Log.Info($"[{Main.ModId}] 已挂载 {Reworks.Vars.Count} 个数值改写 / {Reworks.Play.Count} 个效果改写 / {Reworks.Upgrade.Count} 个升级补充 / {Reworks.UpgradeReplace.Count} 个升级替换");
     }

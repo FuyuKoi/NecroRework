@@ -55,6 +55,19 @@ public static class Main
         // 调试卡：进亡灵契约师的卡池
         ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(DriftTestCard));
 
-        Log.Info($"[{ModId}] 已注册新卡牌 DriftTestCard -> NecrobinderCardPool");
+        // 回眸：普通品质技能牌，跟着白卡一起出现在卡牌奖励里
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(LookBack));
+
+        // 触碰：普通品质攻击牌
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(Touch));
+
+        // 以下五张：普通品质技能牌
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(Retrieve));
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(Exchange));
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(CraftSpirit));
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(Gather));
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(Continuation));
+
+        Log.Info($"[{ModId}] 已注册新卡牌 DriftTestCard / LookBack / Touch / Retrieve / Exchange / CraftSpirit / Gather / Continuation -> NecrobinderCardPool");
     }
 }

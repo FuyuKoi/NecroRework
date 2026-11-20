@@ -3,6 +3,10 @@
   "DIE_FOR_YOU_POWER.description": "[gold]奥斯提[/gold]依旧深爱着你，但它现在只能吸收50%未被格挡的伤害（向上取整）。\n[red]警告：这将会导致触发孤注一掷！[/red]",
   "DOOM_WARD_POWER.title": "灾厄免疫",
   "DOOM_WARD_POWER.description": "免疫下一次获得的[gold]灾厄[/gold]。",
-  "OSTY_GUARD_POWER.title": "仇恨守护",
-  "OSTY_GUARD_POWER.description": "[gold]奥斯提[/gold]将为你承受所有伤害。\n（还剩{Amount}回合）"
+  "OSTY_GUARD_POWER.title": "吸引仇恨",
+  "OSTY_GUARD_POWER.description": "[gold]奥斯提[/gold]将为你承受所有伤害。\n（还剩{Amount}回合）",
+  "SPILLOVER_POWER.title": "已死的维系者",
+  "SPILLOVER_POWER.description": "[gold]吸引仇恨[/gold]生效期间，[gold]奥斯提[/gold]每失去2点生命值，你获得1层[gold]灾厄[/gold]。\n（还剩{Amount}回合）",
+  "ENERGY_CARRY_POWER.title": "延续",
+  "ENERGY_CARRY_POWER.description": "回合结束时剩余的[gold]费用[/gold]会保留到下一回合，并按剩余费用获得{Amount}倍层数的[gold]灾厄[/gold]。"
 }

@@ -1,4 +1,4 @@
-using MegaCrit.Sts2.Core.CardSelection;
+﻿using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
@@ -225,8 +225,12 @@ internal static class Reworks
 
             if (card.Owner.Osty is not { IsAlive: true } osty) return;
 
-            await PowerCmd.Apply<OstyGuardPower>(ctx, osty,
-                card.DynamicVars["GuardTurns"].BaseValue, card.Owner.Creature, card);
+            decimal turns = card.DynamicVars["GuardTurns"].BaseValue;
+
+            await PowerCmd.Apply<OstyGuardPower>(ctx, osty, turns, card.Owner.Creature, card);
+
+            // 副作用：吸引仇恨期间，奥斯提每失去 2 点生命值，玩家获得 1 层灾厄
+            await PowerCmd.Apply<SpilloverPower>(ctx, card.Owner.Creature, turns, card.Owner.Creature, card);
         },
     };
 
