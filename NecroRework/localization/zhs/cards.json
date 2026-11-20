@@ -21,12 +21,13 @@
   "EXCHANGE.description": "选择[gold]手牌[/gold]中至多2张[gold]虚无[/gold]牌，使其下一次打出的费用降低1，每张给予你{DoomPower:diff()}层[gold]灾厄[/gold]。\n弃1张牌。",
   "EXCHANGE.selectionScreenPrompt": "选择至多2张要降低费用的[gold]虚无[/gold]牌。",
   "CRAFT_SPIRIT.title": "造灵",
-  "CRAFT_SPIRIT.description": "如果[gold]奥斯提[/gold]存活：他失去15点生命值，承受你的3点[gold]灾厄[/gold]，你获得一张[gold]{IfUpgraded:show:灵魂+|灵魂}[/gold]。\n如果他已有[gold]灾厄[/gold]，他额外失去4点生命值与20点生命值上限。",
+  "CRAFT_SPIRIT.description": "如果[gold]奥斯提[/gold]存活：他失去15点生命值，承受你的6点[gold]灾厄[/gold]，你获得一张[gold]{IfUpgraded:show:灵魂+|灵魂}[/gold]。\n如果他已有[gold]灾厄[/gold]，他额外失去4点生命值与20点生命值上限。",
   "GATHER.title": "聚拢",
   "GATHER.description": "抽1张牌。\n为[gold]手牌[/gold]中的一张牌附魔[gold]飘荡[/gold]。",
   "GATHER.selectionScreenPrompt": "选择一张要附魔[gold]飘荡[/gold]的牌。",
   "CONTINUATION.title": "延续",
   "CONTINUATION.description": "[gold]召唤[/gold]{Summon:diff()}。\n你在这回合结束时剩余的[gold]费用[/gold]会保留到下一回合，并按剩余费用获得其{DoomMult:diff()}倍层数的[gold]灾厄[/gold]。",
   "DRIFT_TEST_CARD.title": "【调试】飘荡实验",
-  "DRIFT_TEST_CARD.description": "给手牌中第一张还没有附魔的牌附上[gold]飘荡[/gold]。"
+  "DRIFT_TEST_CARD.description": "给手牌中第一张还没有附魔的牌附上[gold]飘荡[/gold]。",
+  "PULL_FROM_BELOW.description": "你将被动消耗下一张[gold]虚无[/gold]牌时，改为自动打出。\n本场战斗中每打出过一张[gold]虚无[/gold]牌，此牌就造成{Damage:diff()}点伤害一次。{InCombat:（命中{CalculatedHits:diff()}次）|}"
 }

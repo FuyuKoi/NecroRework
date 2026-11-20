@@ -8,5 +8,7 @@
   "SPILLOVER_POWER.title": "已死的维系者",
   "SPILLOVER_POWER.description": "[gold]吸引仇恨[/gold]生效期间，[gold]奥斯提[/gold]每失去2点生命值，你获得1层[gold]灾厄[/gold]。\n（还剩{Amount}回合）",
   "ENERGY_CARRY_POWER.title": "延续",
-  "ENERGY_CARRY_POWER.description": "回合结束时剩余的[gold]费用[/gold]会保留到下一回合，并按剩余费用获得{Amount}倍层数的[gold]灾厄[/gold]。"
+  "ENERGY_CARRY_POWER.description": "回合结束时剩余的[gold]费用[/gold]会保留到下一回合，并按剩余费用获得{Amount}倍层数的[gold]灾厄[/gold]。",
+  "PULL_FROM_BELOW_POWER.title": "亡魂牵引",
+  "PULL_FROM_BELOW_POWER.description": "你下一次被动消耗[gold]虚无[/gold]牌时，改为自动打出该牌，之后照常进入弃牌堆。\n（还剩{Amount}次）"
 }

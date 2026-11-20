@@ -71,8 +71,42 @@ internal static class PatchInstaller
         IntentPreview.Install(harmony);
         // 自制卡牌的卡图替换
         CardArt.Install(harmony);
+        // 灾厄也能杀死奥斯提（原版只结算 player/enemy 生物，宠物不在参与者名单里）
+        OstyDoomDeath.Install(harmony);
+
+        // 骨笛重做：每回合奥斯提第一次攻击时给 5 点格挡
+        BoneFluteRework.Install(harmony);
+
+        // 亡魂牵引：消耗虚无牌时改为自动打出
+        PullFromBelowRedirect.Install(harmony);
+
+        // 给我们自己新加的卡兜住 OnPlay 里的异步异常（异常会让出牌流程卡死）
+        InstallTaskGuards(harmony);
 
         Main.Log.Info($"[{Main.ModId}] 已挂载 {Reworks.Vars.Count} 个数值改写 / {Reworks.Play.Count} 个效果改写 / {Reworks.Upgrade.Count} 个升级补充 / {Reworks.UpgradeReplace.Count} 个升级替换");
+    }
+
+    /// <summary>
+    /// 对我们自己写的卡牌，给 OnPlay 的返回值套一层「吃掉异常」的包装。
+    /// 出新卡时不用再手动登记，反射扫本程序集里所有 CardModel 子类即可。
+    /// </summary>
+    private static void InstallTaskGuards(Harmony harmony)
+    {
+        var postfix = new HarmonyMethod(typeof(Patches), nameof(Patches.TaskGuardPostfix));
+        int count = 0;
+
+        foreach (var type in typeof(PatchInstaller).Assembly.GetTypes())
+        {
+            if (type.IsAbstract || !typeof(CardModel).IsAssignableFrom(type)) continue;
+
+            var onPlay = AccessTools.Method(type, "OnPlay");
+            if (onPlay == null) continue;
+
+            harmony.Patch(onPlay, postfix: postfix);
+            count++;
+        }
+
+        Main.Log.Info($"[{Main.ModId}] 已为 {count} 张自定义卡牌挂载出牌异常保护");
     }
 }
 
@@ -102,13 +136,31 @@ internal static class Patches
         {
             var ctx = (MegaCrit.Sts2.Core.GameActions.Multiplayer.PlayerChoiceContext)__args[0];
             var play = (CardPlay)__args[1];
-            __result = impl(card, ctx, play);
+            __result = Guarded(card, impl(card, ctx, play));
             return false; // 跳过原版实现
         }
         catch (Exception e)
         {
             Main.Log.Error($"[{Main.ModId}] {card.GetType().Name} 效果改写失败: {e}");
             return true;
+        }
+    }
+
+    /// <summary>
+    /// 兜住卡牌效果里的异步异常。
+    /// 一旦 OnPlay 抛异常，出牌流程会在「把牌放进对应牌堆」之前中断，
+    /// 卡牌留在 Play 堆里，界面就卡住了（表现为打出某张牌后整个战斗卡死）。
+    /// 所以这里把异常吃掉并记日志，让出牌流程正常收尾。
+    /// </summary>
+    private static async Task Guarded(CardModel card, Task task)
+    {
+        try
+        {
+            await task;
+        }
+        catch (Exception e)
+        {
+            Main.Log.Error($"[{Main.ModId}] {card.GetType().Name} 打出时异常（已兜住，避免出牌流程卡死）: {e}");
         }
     }
 
@@ -141,6 +193,27 @@ internal static class Patches
         {
             Main.Log.Error($"[{Main.ModId}] {card.GetType().Name} 升级替换失败: {e}");
             return true;
+        }
+    }
+
+    /// <summary>把自己卡牌 OnPlay 返回的 Task 换成「异常不会外泄」的版本。</summary>
+    public static void TaskGuardPostfix(object __instance, ref Task __result)
+    {
+        if (__result == null) return;
+        var card = __instance as CardModel;
+        string name = card?.GetType().Name ?? "?";
+        __result = GuardAsync(name, __result);
+    }
+
+    private static async Task GuardAsync(string name, Task task)
+    {
+        try
+        {
+            await task;
+        }
+        catch (Exception e)
+        {
+            Main.Log.Error($"[{Main.ModId}] {name} 打出时异常（已兜住，避免出牌流程卡死）: {e}");
         }
     }
 }

@@ -70,6 +70,9 @@ internal static class PowerIcons
                 case EnergyCarryPower:
                     __result = ModelDb.Power<EnergyNextTurnPower>().PackedIconPath;
                     break;
+                case PullFromBelowPower:
+                    __result = ModelDb.Power<HauntPower>().PackedIconPath;
+                    break;
             }
         }
         catch (Exception e)

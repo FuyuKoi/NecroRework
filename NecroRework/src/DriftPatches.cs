@@ -16,18 +16,47 @@ internal static class DriftPatches
 {
     internal static bool IsDrift(CardModel card) => card != null && card.Enchantment is DriftEnchantment;
 
-    /// <summary>费用 +1：直接改「最终费用」的计算结果，显示和实际扣费都覆盖。</summary>
+    /// <summary>
+    /// 费用 +1。
+    /// 这里不能简单地给「最终费用」加一：原版算完所有加减之后会做一次 Math.Max(0, 费用)，
+    /// 减费（例如「交换」的 -1）如果被夹到 0，末尾再加一就等于减费白给。
+    /// 所以临时往费用修正列表里塞一个 +1 的相对修正，让它和别的加减一起参与计算、一起被夹。
+    /// </summary>
     [HarmonyPatch(typeof(CardEnergyCost), nameof(CardEnergyCost.GetWithModifiers))]
     private static class CostPlusOne
     {
         private static readonly AccessTools.FieldRef<CardEnergyCost, CardModel> CardRef =
             AccessTools.FieldRefAccess<CardEnergyCost, CardModel>("_card");
 
+        private static readonly AccessTools.FieldRef<CardEnergyCost, List<LocalCostModifier>> ModsRef =
+            AccessTools.FieldRefAccess<CardEnergyCost, List<LocalCostModifier>>("_localModifiers");
+
+        [ThreadStatic] private static int _depth;
+        [ThreadStatic] private static CardEnergyCost? _injected;
+
+        [HarmonyPrefix]
+        private static void Prefix(CardEnergyCost __instance)
+        {
+            if (_depth++ > 0) return; // 嵌套调用不重复注入
+            if (__instance.CostsX) return; // X 费牌不处理
+            if (!IsDrift(CardRef(__instance))) return;
+
+            ModsRef(__instance).Add(new LocalCostModifier(
+                1, LocalCostType.Relative, LocalCostModifierExpiration.EndOfCombat, false));
+            _injected = __instance;
+        }
+
         [HarmonyPostfix]
         private static void Postfix(CardEnergyCost __instance, ref int __result)
         {
-            if (__instance.CostsX) return; // X 费牌不处理
-            if (IsDrift(CardRef(__instance))) __result += 1;
+            if (--_depth > 0) return;
+            if (_injected != __instance) return;
+
+            var mods = ModsRef(__instance);
+            if (mods.Count > 0 && mods[^1].Type == LocalCostType.Relative && mods[^1].Amount == 1)
+                mods.RemoveAt(mods.Count - 1);
+
+            _injected = null;
         }
     }
 

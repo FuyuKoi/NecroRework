@@ -1,4 +1,4 @@
-﻿using MegaCrit.Sts2.Core.CardSelection;
+using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
@@ -140,6 +140,24 @@ internal static class Reworks
                 CardCmd.ApplyKeyword(c, CardKeyword.Retain);
         },
 
+        // 亡魂牵引：先获得 1 层「亡魂牵引」（下一次消耗虚无牌时改为自动打出），
+        // 再按「本场战斗打出过的虚无牌数量」连续造成 N 次伤害（N 可为 0，那就没有攻击）。
+        [typeof(PullFromBelow)] = async (card, ctx, play) =>
+        {
+            await PowerCmd.Apply<PullFromBelowPower>(ctx, card.Owner.Creature, 1m, card.Owner.Creature, card);
+
+            if (play.Target is not { } target) return;
+            int hits = (int)((CalculatedVar)card.DynamicVars["CalculatedHits"]).Calculate(target);
+            if (hits <= 0) return;
+
+            await DamageCmd.Attack(card.DynamicVars.Damage.BaseValue)
+                .WithHitCount(hits)
+                .FromCard(card, play)
+                .Targeting(target)
+                .WithHitFx("vfx/vfx_attack_slash")
+                .Execute(ctx);
+        },
+
         // 鬼火：获得 2 费，然后获得 6 层灾厄（会触发死亡之门 / 厄运之衣）。
         [typeof(Wisp)] = async (card, ctx, play) =>
         {
@@ -169,18 +187,23 @@ internal static class Reworks
                 await PowerCmd.Apply<DoomPower>(ctx, enemy, card.DynamicVars.Doom.BaseValue, card.Owner.Creature, card);
         },
 
-        // 来生：先召唤，再按奥斯提「当前」生命值折算免疫层数（每 14 点一层，向下取整，施放时快照一次）。
+        // 来生：召唤后按奥斯提的生命值算出免疫层数（每 14 点一层，向下取整）。
+        // 召唤本身会给存活的奥斯提 +10 最大生命并回 10 血，这部分也要算进去，
+        // 否则刚好卡在 14 的倍数边上时会凭空少一层。
+        // 打出时奥斯提已经死了 → 这次召唤只是把它拉起来，不给免疫。
         [typeof(Afterlife)] = async (card, ctx, play) =>
         {
+            bool wasAlive = card.Owner.Osty is { IsAlive: true };
+
             await CreatureCmd.TriggerAnim(card.Owner.Creature,
                 Necrobinder.GetSummonAnimIfApplicable(card.Owner.Character),
                 Necrobinder.GetSummonDelayIfApplicable(card.Owner.Character));
 
             await OstyCmd.Summon(ctx, card.Owner, card.DynamicVars.Summon.BaseValue, card);
 
-            if (card.Owner.Osty is not { IsAlive: true } osty) return;
+            if (!wasAlive) return;
 
-            decimal wards = Math.Floor(osty.CurrentHp / 14m);
+            decimal wards = card.Owner.Osty is { IsAlive: true } after ? Math.Floor(after.CurrentHp / 14m) : 0m;
             if (wards <= 0m) return;
 
             await PowerCmd.Apply<DoomWardPower>(ctx, card.Owner.Creature, wards, card.Owner.Creature, card);
