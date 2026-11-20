@@ -67,7 +67,7 @@ internal static class Reworks
         // 唤起：下回合召唤 2（升级 3）→ 召唤 4（升级 6），费用部分不变
         [typeof(Invoke)] = _ => [new SummonVar(4m), new EnergyVar(2)],
 
-        // 来生：召唤 6（升级 9）→ 召唤 10（升级 13），另外附加「免疫下一次灾厄」
+        // 来生：召唤 6（升级 9）→ 召唤 10（升级 13）；免疫层数由奥斯提当前生命值决定（每 14 点一层）
         [typeof(Afterlife)] = _ => [new SummonVar(10m)],
 
         // 吸引仇恨：召唤 4（升级 5）+ 7（升级 9）格挡
@@ -169,15 +169,21 @@ internal static class Reworks
                 await PowerCmd.Apply<DoomPower>(ctx, enemy, card.DynamicVars.Doom.BaseValue, card.Owner.Creature, card);
         },
 
-        // 来生：先挂「免疫下一次灾厄」，再召唤（顺序和文案一致）。
+        // 来生：先召唤，再按奥斯提「当前」生命值折算免疫层数（每 14 点一层，向下取整，施放时快照一次）。
         [typeof(Afterlife)] = async (card, ctx, play) =>
         {
             await CreatureCmd.TriggerAnim(card.Owner.Creature,
                 Necrobinder.GetSummonAnimIfApplicable(card.Owner.Character),
                 Necrobinder.GetSummonDelayIfApplicable(card.Owner.Character));
 
-            await PowerCmd.Apply<DoomWardPower>(ctx, card.Owner.Creature, 1m, card.Owner.Creature, card);
             await OstyCmd.Summon(ctx, card.Owner, card.DynamicVars.Summon.BaseValue, card);
+
+            if (card.Owner.Osty is not { IsAlive: true } osty) return;
+
+            decimal wards = Math.Floor(osty.CurrentHp / 14m);
+            if (wards <= 0m) return;
+
+            await PowerCmd.Apply<DoomWardPower>(ctx, card.Owner.Creature, wards, card.Owner.Creature, card);
         },
 
         // 守墓人：起格挡，然后把一张灵魂放进抽牌堆；卡牌升级时给的是灵魂+。
