@@ -1,9 +1,9 @@
-{
+﻿{
   "id": "NecroRework",
   "name": "亡灵契约师·重制",
   "author": "大肥鱼 & 你",
   "description": "重做亡灵契约师的卡牌机制：奥斯提只承受一半伤害、灾厄转移、飘荡附魔，并新增卡牌。",
-  "version": "0.4.4",
+  "version": "0.4.8",
   "min_game_version": "0.113.1",
   "has_dll": true,
   "has_pck": false,

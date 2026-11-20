@@ -16,6 +16,8 @@ internal static class PatchInstaller
     {
         var varsPostfix = new HarmonyMethod(typeof(Patches), nameof(Patches.VarsPostfix));
         var playPrefix = new HarmonyMethod(typeof(Patches), nameof(Patches.PlayPrefix));
+        var upgradePostfix = new HarmonyMethod(typeof(Patches), nameof(Patches.UpgradePostfix));
+        var upgradePrefix = new HarmonyMethod(typeof(Patches), nameof(Patches.UpgradePrefix));
 
         foreach (var type in Reworks.Vars.Keys)
         {
@@ -39,7 +41,32 @@ internal static class PatchInstaller
             harmony.Patch(onPlay, prefix: playPrefix);
         }
 
-        Main.Log.Info($"[{Main.ModId}] 已挂载 {Reworks.Vars.Count} 个数值改写 / {Reworks.Play.Count} 个效果改写");
+        foreach (var type in Reworks.Upgrade.Keys)
+        {
+            var onUpgrade = AccessTools.Method(type, "OnUpgrade");
+            if (onUpgrade == null)
+            {
+                Main.Log.Warn($"[{Main.ModId}] 找不到 {type.Name}.OnUpgrade，跳过升级数值补充");
+                continue;
+            }
+            harmony.Patch(onUpgrade, postfix: upgradePostfix);
+        }
+
+        foreach (var type in Reworks.UpgradeReplace.Keys)
+        {
+            var onUpgrade = AccessTools.Method(type, "OnUpgrade");
+            if (onUpgrade == null)
+            {
+                Main.Log.Warn($"[{Main.ModId}] 找不到 {type.Name}.OnUpgrade，跳过升级整段替换");
+                continue;
+            }
+            harmony.Patch(onUpgrade, prefix: upgradePrefix);
+        }
+
+        // 自制能力的图标重定向
+        PowerIcons.Install(harmony);
+
+        Main.Log.Info($"[{Main.ModId}] 已挂载 {Reworks.Vars.Count} 个数值改写 / {Reworks.Play.Count} 个效果改写 / {Reworks.Upgrade.Count} 个升级补充 / {Reworks.UpgradeReplace.Count} 个升级替换");
     }
 }
 
@@ -75,6 +102,38 @@ internal static class Patches
         catch (Exception e)
         {
             Main.Log.Error($"[{Main.ModId}] {card.GetType().Name} 效果改写失败: {e}");
+            return true;
+        }
+    }
+
+    public static void UpgradePostfix(object __instance)
+    {
+        if (__instance is not CardModel card) return;
+        if (!Reworks.Upgrade.TryGetValue(card.GetType(), out var apply)) return;
+
+        try
+        {
+            apply(card);
+        }
+        catch (Exception e)
+        {
+            Main.Log.Error($"[{Main.ModId}] {card.GetType().Name} 升级补充失败: {e}");
+        }
+    }
+
+    public static bool UpgradePrefix(object __instance)
+    {
+        if (__instance is not CardModel card) return true;
+        if (!Reworks.UpgradeReplace.TryGetValue(card.GetType(), out var apply)) return true;
+
+        try
+        {
+            apply(card);
+            return false; // 跳过原版 OnUpgrade
+        }
+        catch (Exception e)
+        {
+            Main.Log.Error($"[{Main.ModId}] {card.GetType().Name} 升级替换失败: {e}");
             return true;
         }
     }

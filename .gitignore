@@ -1,0 +1,26 @@
+# build output
+bin/
+obj/
+build-out/
+
+# packaged mods (installables, not source)
+modpacks/
+
+# snapshot backups
+backups/
+
+# dotnet local state
+.dotnet_home/
+.nuget_packages/
+
+# IDE
+.idea/
+.vs/
+*.user
+*.suo
+
+# third-party reference (copy back from game mods folder)
+NecroRework/lib/
+
+# local junk
+*.zip

@@ -8,19 +8,20 @@ using MegaCrit.Sts2.Core.Hooks;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.ValueProps;
+using NecroRework.Powers;
 
 namespace NecroRework;
 
 /// <summary>
 /// 重做「为你而死」：奥斯提只吸收 50% 的未格挡攻击伤害，剩下的仍然打在玩家身上。
 ///
-/// 实现思路（结构性防重复）：
-///   1. 原版会把「未格挡伤害」整包转给奥斯提。这里**不让它转**，改为把这一发伤害的数值清成 0，
-///      所以引擎自己不会给任何一方扣血，不存在"引擎扣一次 + 我再补一次"。
-///   2. 在这一发伤害整体结束后，我自己用两次 CreatureCmd.Damage 结算：
-///        奥斯提吃 min(ceil(未格挡/2), 奥斯提当前血量)
-///        玩家吃   未格挡 - 奥斯提那份
-///      两者都用完整伤害管线（会弹数字、会触发受击效果），且总额恒等于未格挡伤害。
+/// 实现思路（v0.4.7 重写，避免"伤害被算两次"）：
+///   1. 原版会把「未格挡伤害」整包转给奥斯提。我们不让它转别处，而是在结算这一步把
+///      这一发分成两半：**玩家那一半直接交给引擎原本的扣血调用**（格挡、易伤、数字、
+///      孤注一掷全部走原版那条唯一路径），所以我们只返回 playerShare 当结果。
+///   2. 奥斯提那一半在这次伤害整体结束后，由我们自己补一发真实的伤害调用，
+///      并明确传入 ModifyDamageHookType.None —— 因为这一半的数值已经是"最终值"，
+///      如果让力量/易伤再乘一次，玩家就会被打出远超预期的伤害（旧版本的问题）。
 ///
 /// 注意：包装 Damage 必须防重入，否则会无限递归 → 栈溢出 → 游戏崩溃。
 /// </summary>
@@ -28,14 +29,11 @@ internal static class OstySplit
 {
     private struct Split
     {
-        public Creature Player;
         public Creature Osty;
         public decimal OstyShare;
-        public decimal PlayerShare;
         public ValueProp Props;
         public Creature Dealer;
         public CardModel CardSource;
-        public ModifyDamageHookType HookType;
         public string HitVfx;
         public bool VfxOnCenter;
     }
@@ -47,9 +45,7 @@ internal static class OstySplit
 
     private static readonly List<Split> Pending = new();
 
-    private static PlayerChoiceContext _ctx;
-
-    /// <summary>正在补结算我们自己的两次伤害：禁止再次分摊 / 再次转移。</summary>
+    /// <summary>正在补结算我们自己的奥斯提伤害：禁止再次分摊。</summary>
     private static bool _applyingShare;
 
     /// <summary>Damage 包装的重入深度。>0 表示正处在自己的包装里，必须直接走原版。</summary>
@@ -59,7 +55,7 @@ internal static class OstySplit
     private static bool _armed;
     private static Creature _armedPlayer;
 
-    /// <summary>本次伤害里每个目标原本的命中特效，用来让我们自己结算的那两段也播特效。</summary>
+    /// <summary>本次伤害里每个目标原本的命中特效，用来让我们自己结算的那一段也播特效。</summary>
     private static Dictionary<Creature, (string Vfx, bool Center)> _vfxMap = new();
     private static ModifyDamageHookType _currentHookType = ModifyDamageHookType.All;
 
@@ -85,7 +81,10 @@ internal static class OstySplit
             if (target != osty.PetOwner?.Creature) return true;
             if (!props.IsPoweredAttack()) return true;
 
-            // 不交给原版转移：标记后让引擎这一发伤害变成 0，稍后由我们自己结算
+            // 「吸引仇恨」期间不分摊：让原版把整发伤害都交给奥斯提
+            if (osty.HasPower<OstyGuardPower>()) return true;
+
+            // 不交给原版转移：标记后由我们在 AfterOsty 阶段把这一发拆成两半
             _armed = true;
             _armedPlayer = target;
             __result = target;
@@ -93,7 +92,7 @@ internal static class OstySplit
         }
     }
 
-    // ---------------- 2. 把引擎这一发伤害清零，并记下两边份额 ----------------
+    // ---------------- 2. 把这一发拆成两半：玩家那半交回引擎，奥斯提那半记下来 ----------------
 
     [HarmonyPatch(typeof(AbstractModel), nameof(AbstractModel.ModifyHpLostAfterOsty))]
     private static class SplitHpLoss
@@ -109,7 +108,13 @@ internal static class OstySplit
             _armed = false;
 
             var player = _armedPlayer;
-            var osty = player?.Player?.Osty;
+            if (player == null)
+            {
+                __result = amount;
+                return true;
+            }
+
+            var osty = player.Player?.Osty;
 
             // 奥斯提那份向上取整，且不能超过当前血量；超出部分自然落回玩家
             var ostyShare = 0m;
@@ -118,34 +123,33 @@ internal static class OstySplit
 
             var playerShare = amount - ostyShare;
 
-            if (amount > 0m && player != null)
+            if (ostyShare > 0m && osty != null)
             {
                 _vfxMap.TryGetValue(player, out var vfx);
 
                 Pending.Add(new Split
                 {
-                    Player = player,
-                    Osty = ostyShare > 0m ? osty : null,
+                    Osty = osty,
                     OstyShare = ostyShare,
-                    PlayerShare = playerShare,
                     Props = props,
                     Dealer = dealer,
                     CardSource = cardSource,
-                    HookType = _currentHookType,
                     HitVfx = vfx.Vfx,
                     VfxOnCenter = vfx.Center,
                 });
 
-                Main.Log.Info($"[{Main.ModId}] 分摊：未格挡 {amount} → 奥斯提 {ostyShare}（HP {osty?.CurrentHp ?? 0}）／玩家 {playerShare}");
+                Main.Log.Info(
+                    $"[{Main.ModId}] 分摊：未格挡 {amount} → 奥斯提 {ostyShare}（HP {osty.CurrentHp}→{osty.CurrentHp - ostyShare}）" +
+                    $"／玩家 {playerShare}（HP {player.CurrentHp}→{player.CurrentHp - playerShare}）");
             }
 
-            // 引擎这一发不再扣血，避免重复结算
-            __result = 0m;
+            // 玩家那一半交给引擎原本的扣血流程：格挡已经在上面扣过，这里只走最后一次 LoseHpInternal
+            __result = playerShare;
             return false;
         }
     }
 
-    // ---------------- 3. 整次伤害结束后，用真实伤害管线分别结算 ----------------
+    // ---------------- 3. 整次伤害结束后，补一发只打奥斯提的伤害 ----------------
 
     [HarmonyPatch]
     private static class ApplyPendingAfterDamage
@@ -228,11 +232,9 @@ internal static class OstySplit
                 var cardPlay = (CardPlay)args[6];
                 var hookType = (ModifyDamageHookType)args[7];
 
-                var previousCtx = _ctx;
                 var previousVfx = _vfxMap;
                 var previousHookType = _currentHookType;
 
-                _ctx = ctx;
                 _vfxMap = BuildVfxMap(targetData);
                 _currentHookType = hookType;
                 _armed = false;
@@ -241,12 +243,11 @@ internal static class OstySplit
                 IEnumerable<DamageResult> result;
                 try
                 {
-                    // _depth > 0，这次调用会直接命中重入保护，走原版实现（引擎那一发已被清零）
+                    // _depth > 0，这次调用会直接命中重入保护，走原版实现
                     result = await CreatureCmd.Damage(ctx, targetData, amount, props, dealer, cardSource, cardPlay, hookType);
                 }
                 finally
                 {
-                    _ctx = previousCtx;
                     _vfxMap = previousVfx;
                     _currentHookType = previousHookType;
                 }
@@ -261,27 +262,17 @@ internal static class OstySplit
                 {
                     foreach (var s in splits)
                     {
-                        if (s.OstyShare > 0m && s.Osty is { IsAlive: true })
-                        {
-                            var ostyData = new DamageTargetData(s.Osty)
-                            {
-                                hitVfx = s.HitVfx,
-                                playVfxOnCreatureCenter = s.VfxOnCenter,
-                            };
-                            await CreatureCmd.Damage(ctx, new[] { ostyData }, s.OstyShare,
-                                s.Props, s.Dealer, s.CardSource, null, s.HookType);
-                        }
+                        if (s.OstyShare <= 0m || s.Osty is not { IsAlive: true }) continue;
 
-                        if (s.PlayerShare > 0m)
+                        var ostyData = new DamageTargetData(s.Osty)
                         {
-                            var playerData = new DamageTargetData(s.Player)
-                            {
-                                hitVfx = s.HitVfx,
-                                playVfxOnCreatureCenter = s.VfxOnCenter,
-                            };
-                            await CreatureCmd.Damage(ctx, new[] { playerData }, s.PlayerShare,
-                                s.Props, s.Dealer, s.CardSource, null, s.HookType);
-                        }
+                            hitVfx = s.HitVfx,
+                            playVfxOnCreatureCenter = s.VfxOnCenter,
+                        };
+
+                        // 数值已经是最终值，不能再让力量／易伤乘一次，所以传 None
+                        await CreatureCmd.Damage(ctx, new[] { ostyData }, s.OstyShare,
+                            s.Props, s.Dealer, s.CardSource, null, ModifyDamageHookType.None);
                     }
                 }
                 catch (Exception e)
