@@ -3,6 +3,7 @@ using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
+using NecroRework.Stats;
 
 namespace NecroRework;
 
@@ -18,6 +19,9 @@ internal static class PatchInstaller
         var playPrefix = new HarmonyMethod(typeof(Patches), nameof(Patches.PlayPrefix));
         var upgradePostfix = new HarmonyMethod(typeof(Patches), nameof(Patches.UpgradePostfix));
         var upgradePrefix = new HarmonyMethod(typeof(Patches), nameof(Patches.UpgradePrefix));
+        var keywordsPrefix = new HarmonyMethod(typeof(Patches), nameof(Patches.KeywordsPrefix));
+        var tipsPrefix = new HarmonyMethod(typeof(Patches), nameof(Patches.TipsPrefix));
+        var costPrefix = new HarmonyMethod(typeof(Patches), nameof(Patches.CostPrefix));
 
         foreach (var type in Reworks.Vars.Keys)
         {
@@ -27,7 +31,7 @@ internal static class PatchInstaller
                 Main.Log.Warn($"[{Main.ModId}] 找不到 {type.Name}.CanonicalVars，跳过数值改写");
                 continue;
             }
-            harmony.Patch(getter, postfix: varsPostfix);
+            Safe($"数值改写 {type.Name}", () => harmony.Patch(getter, postfix: varsPostfix));
         }
 
         foreach (var type in Reworks.Play.Keys)
@@ -38,7 +42,7 @@ internal static class PatchInstaller
                 Main.Log.Warn($"[{Main.ModId}] 找不到 {type.Name}.OnPlay，跳过效果改写");
                 continue;
             }
-            harmony.Patch(onPlay, prefix: playPrefix);
+            Safe($"效果改写 {type.Name}", () => harmony.Patch(onPlay, prefix: playPrefix));
         }
 
         foreach (var type in Reworks.Upgrade.Keys)
@@ -49,7 +53,7 @@ internal static class PatchInstaller
                 Main.Log.Warn($"[{Main.ModId}] 找不到 {type.Name}.OnUpgrade，跳过升级数值补充");
                 continue;
             }
-            harmony.Patch(onUpgrade, postfix: upgradePostfix);
+            Safe($"升级补充 {type.Name}", () => harmony.Patch(onUpgrade, postfix: upgradePostfix));
         }
 
         foreach (var type in Reworks.UpgradeReplace.Keys)
@@ -60,30 +64,97 @@ internal static class PatchInstaller
                 Main.Log.Warn($"[{Main.ModId}] 找不到 {type.Name}.OnUpgrade，跳过升级整段替换");
                 continue;
             }
-            harmony.Patch(onUpgrade, prefix: upgradePrefix);
+            Safe($"升级替换 {type.Name}", () => harmony.Patch(onUpgrade, prefix: upgradePrefix));
         }
 
+        // 关键词 / 悬停提示 / 基础费用：有的卡自己 override 了这些属性，有的没有。
+        // 所以「基类声明的那一份」和「每张卡自己声明的那一份」都要打，缺一不可：
+        // 只打基类 → 卡自己 override 的就盖掉了；只打卡自己 → 没 override 的（如厄运之衣）根本找不到方法，
+        // Harmony 会抛 ArgumentException 并中断整个安装流程（曾经导致意图提示、卡图、血条等全部没挂上）。
+        PatchProperty(harmony, keywordsPrefix, "CanonicalKeywords", Reworks.Keywords.Keys);
+        PatchProperty(harmony, tipsPrefix, "ExtraHoverTips", Reworks.Tips.Keys);
+        PatchProperty(harmony, costPrefix, "CanonicalEnergyCost", Reworks.Costs.Keys);
+
+        // 下面每一项都独立兜异常：任何一项挂载失败，都不能连累后面的功能。
         // 自制能力的图标重定向 + 为你而死的自定义图标
-        PowerIcons.Install(harmony);
+        Safe("能力图标", () => PowerIcons.Install(harmony));
         // 奥斯提血条 75% 不透明度
-        OstyHpBar.Install(harmony);
+        Safe("奥斯提血条", () => OstyHpBar.Install(harmony));
         // 攻击意图数字后追加「（x）」：格挡 + 奥斯提减伤后玩家实际会掉的伤害
-        IntentPreview.Install(harmony);
+        Safe("意图伤害提示", () => IntentPreview.Install(harmony));
         // 自制卡牌的卡图替换
-        CardArt.Install(harmony);
+        Safe("卡图替换", () => CardArt.Install(harmony));
         // 灾厄也能杀死奥斯提（原版只结算 player/enemy 生物，宠物不在参与者名单里）
-        OstyDoomDeath.Install(harmony);
+        Safe("灾厄处死奥斯提", () => OstyDoomDeath.Install(harmony));
 
         // 骨笛重做：每回合奥斯提第一次攻击时给 5 点格挡
-        BoneFluteRework.Install(harmony);
+        Safe("骨笛重做", () => BoneFluteRework.Install(harmony));
 
         // 亡魂牵引：消耗虚无牌时改为自动打出
-        PullFromBelowRedirect.Install(harmony);
+        Safe("亡魂牵引", () => PullFromBelowRedirect.Install(harmony));
+
+        // 忧郁：你或奥斯提获得负面效果时，本场战斗永久 -1 费
+        Safe("忧郁降费", () => MelancholyCost.Install(harmony));
+
+        // 增生：「奥斯提本回合增加了多少生命值」的记录
+        Safe("增生统计", () => OstyHpGainTracker.Install(harmony));
+
+        // 钙化：奥斯提每次攻击后给玩家格挡
+        Safe("钙化格挡", () => CalcifyGuard.Install(harmony));
 
         // 给我们自己新加的卡兜住 OnPlay 里的异步异常（异常会让出牌流程卡死）
-        InstallTaskGuards(harmony);
+        Safe("出牌异常保护", () => InstallTaskGuards(harmony));
 
-        Main.Log.Info($"[{Main.ModId}] 已挂载 {Reworks.Vars.Count} 个数值改写 / {Reworks.Play.Count} 个效果改写 / {Reworks.Upgrade.Count} 个升级补充 / {Reworks.UpgradeReplace.Count} 个升级替换");
+        Main.Log.Info($"[{Main.ModId}] 已挂载 {Reworks.Vars.Count} 个数值改写 / {Reworks.Play.Count} 个效果改写 / {Reworks.Upgrade.Count} 个升级补充 / {Reworks.UpgradeReplace.Count} 个升级替换 / {Reworks.Costs.Count} 个费用改写 / {Reworks.Keywords.Count} 个关键词改写 / {Reworks.Tips.Count} 个提示改写");
+    }
+
+    private static void Safe(string what, Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception e)
+        {
+            Main.Log.Error($"[{Main.ModId}] {what} 挂载失败（已跳过，不影响其它功能）：{e}");
+        }
+    }
+
+    /// <summary>
+    /// 给一个虚属性挂 prefix：基类声明的那一份挂一次，表里每张卡自己声明的那一份也各挂一次。
+    /// 同一个 getter 只挂一次，避免重复执行。
+    /// </summary>
+    private static void PatchProperty(Harmony harmony, HarmonyMethod prefix, string propertyName, IEnumerable<Type> types)
+    {
+        var patched = new HashSet<MethodInfo>();
+
+        var baseGetter = AccessTools.DeclaredProperty(typeof(CardModel), propertyName)?.GetGetMethod(true);
+        if (baseGetter != null)
+        {
+            PatchGetter(harmony, prefix, baseGetter, patched);
+        }
+
+        foreach (var type in types)
+        {
+            var getter = AccessTools.DeclaredProperty(type, propertyName)?.GetGetMethod(true);
+            if (getter == null || getter.IsAbstract) continue;
+            PatchGetter(harmony, prefix, getter, patched);
+        }
+    }
+
+    private static void PatchGetter(Harmony harmony, HarmonyMethod prefix, MethodInfo getter, HashSet<MethodInfo> patched)
+    {
+        if (!patched.Add(getter)) return;
+
+        try
+        {
+            harmony.Patch(getter, prefix: prefix);
+        }
+        catch (Exception e)
+        {
+            patched.Remove(getter);
+            Main.Log.Warn($"[{Main.ModId}] 挂载 {getter.DeclaringType?.Name}.{getter.Name} 失败（跳过）：{e.Message}");
+        }
     }
 
     /// <summary>
@@ -196,9 +267,43 @@ internal static class Patches
         }
     }
 
-    /// <summary>把自己卡牌 OnPlay 返回的 Task 换成「异常不会外泄」的版本。</summary>
-    public static void TaskGuardPostfix(object __instance, ref Task __result)
+    public static bool KeywordsPrefix(object __instance, ref IEnumerable<CardKeyword> __result)
     {
+        if (__instance is not CardModel card) return true;
+        if (!Reworks.Keywords.TryGetValue(card.GetType(), out var keywords)) return true;
+
+        __result = keywords;
+        return false;
+    }
+
+    public static bool TipsPrefix(object __instance, ref IEnumerable<MegaCrit.Sts2.Core.HoverTips.IHoverTip> __result)    {
+        if (__instance is not CardModel card) return true;
+        if (!Reworks.Tips.TryGetValue(card.GetType(), out var factory)) return true;
+
+        try
+        {
+            __result = factory(card);
+            return false;
+        }
+        catch (Exception e)
+        {
+            Main.Log.Error($"[{Main.ModId}] {card.GetType().Name} 悬停提示替换失败: {e}");
+            return true;
+        }
+    }
+
+    /// <summary>整段替换卡牌的基础费用（原版费用写在构造函数里）。</summary>
+    public static bool CostPrefix(object __instance, ref int __result)
+    {
+        if (__instance is not CardModel card) return true;
+        if (!Reworks.Costs.TryGetValue(card.GetType(), out int cost)) return true;
+
+        __result = cost;
+        return false;
+    }
+
+    /// <summary>把自己卡牌 OnPlay 返回的 Task 换成「异常不会外泄」的版本。</summary>
+    public static void TaskGuardPostfix(object __instance, ref Task __result)    {
         if (__result == null) return;
         var card = __instance as CardModel;
         string name = card?.GetType().Name ?? "?";

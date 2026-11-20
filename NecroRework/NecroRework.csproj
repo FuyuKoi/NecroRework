@@ -43,6 +43,12 @@
     <None Include="die_for_you_icon.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="look_back.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="touch.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="gather.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="retrieve.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="exchange.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="craft_spirit.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="continuation.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="ghost_lantern.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

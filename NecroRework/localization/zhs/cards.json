@@ -29,5 +29,17 @@
   "CONTINUATION.description": "[gold]召唤[/gold]{Summon:diff()}。\n你在这回合结束时剩余的[gold]费用[/gold]会保留到下一回合，并按剩余费用获得其{DoomMult:diff()}倍层数的[gold]灾厄[/gold]。",
   "DRIFT_TEST_CARD.title": "【调试】飘荡实验",
   "DRIFT_TEST_CARD.description": "给手牌中第一张还没有附魔的牌附上[gold]飘荡[/gold]。",
-  "PULL_FROM_BELOW.description": "你将被动消耗下一张[gold]虚无[/gold]牌时，改为自动打出。\n本场战斗中每打出过一张[gold]虚无[/gold]牌，此牌就造成{Damage:diff()}点伤害一次。{InCombat:（命中{CalculatedHits:diff()}次）|}"
+  "PULL_FROM_BELOW.description": "你将被动消耗下一张[gold]虚无[/gold]牌时，改为自动打出。\n本场战斗中每打出过一张[gold]虚无[/gold]牌，此牌就造成{Damage:diff()}点伤害一次。{InCombat:（命中{CalculatedHits:diff()}次）|}",
+  "SIC_EM.description": "[gold]奥斯提[/gold]造成{OstyDamage:diff()}点伤害。\n在本回合内，[gold]奥斯提[/gold]每攻击这名敌人2次，就给予其{RelentlessPower:diff()}层[gold]易伤[/gold]。",
+  "MELANCHOLY.description": "获得{Block:diff()}点[gold]格挡[/gold]。\n每当你或[gold]奥斯提[/gold]获得负面效果时，这张牌的耗能减少1{Energy:energyIcons()}。",
+  "PARSE.description": "获得6点[gold]灾厄[/gold]。\n抽{Cards:diff()}张牌。",
+  "DIRGE.description": "[gold]召唤[/gold]{Summon:diff()}X次。\n将X+2张[gold]{IfUpgraded:show:灵魂+|灵魂}[/gold]添加到你的[gold]抽牌堆[/gold]中。",
+  "SPUR.description": "[gold]奥斯提[/gold]回复{Heal:diff()}点生命值，你获得等同于其本回合已增加生命值的[gold]格挡[/gold]。",
+  "PUTREFY.description": "给予{Power:diff()}层[gold]虚弱[/gold]2次。\n给予{Power:diff()}层[gold]易伤[/gold]2次。",
+  "COUNTDOWN.description": "在你的回合开始时，给予随机敌人{CountdownReworkPower:diff()}层[gold]灾厄[/gold]，然后你失去等量[gold]灾厄[/gold]。",
+  "SLEIGHT_OF_FLESH.description": "每当你给予一个敌人负面状态时，使其受到{SleightOfFleshPower:diff()}点伤害。",
+  "HAUNT.description": "每当你打出一张[gold]灵魂[/gold]时，随机一名敌人失去{HpLoss:diff()}点生命。{IfUpgraded:show:打出时，将一张[gold]灵魂[/gold]放入你的[gold]手牌[/gold]。}",
+  "CALCIFY.description": "[gold]奥斯提[/gold]的攻击额外造成{CalcifyPower:diff()}点伤害，且每次攻击后为你提供{Block:diff()}点[gold]格挡[/gold]。",
+  "GHOST_LANTERN.title": "冥灯",
+  "GHOST_LANTERN.description": "获得[blue]4X{IfUpgraded:show:+4|}[/blue]点[gold]格挡[/gold]。\n接下来的[blue]X{IfUpgraded:show:+2|}[/blue]个回合里，你每回合抽到的前两张[gold]虚无[/gold]牌会各给予你1点[gold]费用[/gold]。"
 }

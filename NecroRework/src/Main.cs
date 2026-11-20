@@ -68,6 +68,9 @@ public static class Main
         ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(Gather));
         ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(Continuation));
 
-        Log.Info($"[{ModId}] 已注册新卡牌 DriftTestCard / LookBack / Touch / Retrieve / Exchange / CraftSpirit / Gather / Continuation -> NecrobinderCardPool");
+        // 冥灯：罕见品质技能牌（X 费）
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(GhostLantern));
+
+        Log.Info($"[{ModId}] 已注册新卡牌 DriftTestCard / LookBack / Touch / Retrieve / Exchange / CraftSpirit / Gather / Continuation / GhostLantern -> NecrobinderCardPool");
     }
 }

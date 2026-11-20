@@ -73,6 +73,15 @@ internal static class PowerIcons
                 case PullFromBelowPower:
                     __result = ModelDb.Power<HauntPower>().PackedIconPath;
                     break;
+                case RelentlessPower:
+                    __result = ModelDb.Power<VulnerablePower>().PackedIconPath;
+                    break;
+                case CountdownReworkPower:
+                    __result = ModelDb.Power<CountdownPower>().PackedIconPath;
+                    break;
+                case GhostLanternPower:
+                    __result = ModelDb.Power<SpiritOfAshPower>().PackedIconPath;
+                    break;
             }
         }
         catch (Exception e)

@@ -10,8 +10,10 @@ using MegaCrit.Sts2.Core.Models.Cards;
 using MegaCrit.Sts2.Core.Models.Characters;
 using MegaCrit.Sts2.Core.Models.Monsters;
 using MegaCrit.Sts2.Core.Models.Powers;
+using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.ValueProps;
 using NecroRework.Powers;
+using NecroRework.Stats;
 
 namespace NecroRework;
 
@@ -73,6 +75,42 @@ internal static class Reworks
         // 吸引仇恨：召唤 4（升级 5）+ 7（升级 9）格挡
         //           → 召唤 8（升级 10）+ 奥斯提全吸收 1（升级 2）回合
         [typeof(PullAggro)] = _ => [new SummonVar(8m), new IntVar("GuardTurns", 1m)],
+
+        // 刺破帷幕：伤害 10（升级 13）→ 11（升级 14）；「下一张虚无牌耗能 0」由原版能力负责
+        [typeof(Veilpiercer)] = _ => [new DamageVar(11m, ValueProp.Move)],
+
+        // 紧追不放：奥斯提伤害 5（升级 6）→ 8（升级 11）；
+        //            额外召唤 → 改为「本回合内每攻击该敌人 2 次给 1（升级 2）层易伤」
+        [typeof(SicEm)] = _ => [new OstyDamageVar(8m, ValueProp.Move), new PowerVar<RelentlessPower>(1m)],
+
+        // 忧郁：格挡 13（升级 17）→ 12（升级 16）；降费条件换成「你或奥斯提获得负面效果」
+        [typeof(Melancholy)] = _ => [new BlockVar(12m, ValueProp.Move), new EnergyVar(1)],
+
+        // 领会：抽 3（升级 4）→ 先获得 6 层灾厄，再抽 3（升级 4）
+        [typeof(Parse)] = _ => [new CardsVar(3), new PowerVar<DoomPower>(6m)],
+
+        // 挽歌：每次召唤 3（升级 4）→ 5（升级 6）；灵魂张数改为 X+2（Play 里加）
+        [typeof(Dirge)] = _ => [new SummonVar(5m)],
+
+        // 增生：去掉召唤，只保留治疗 5（升级 8）；
+        //       SummonVar(0) 只是留着给原版悬停提示取用，卡面上不会显示
+        [typeof(Spur)] = _ => [new HealVar(5m), new SummonVar(0m)],
+
+        // 腐烂：每次施加的层数 2（升级 3）→ 1（升级 2），实际施加两次
+        [typeof(Putrefy)] = _ => [new DynamicVar("Power", 1m)],
+
+        // 倒数计时：随机敌人灾厄 6（升级 9）→ 4（升级 7）；行为换成自制能力
+        [typeof(Countdown)] = _ => [new PowerVar<CountdownReworkPower>(4m)],
+
+        // 血肉戏法：9（升级 13）→ 5（升级 8），再加一个「虚无」
+        [typeof(SleightOfFlesh)] = _ => [new PowerVar<SleightOfFleshPower>(5m)],
+
+        // 纠缠：灵魂造成的生命流失 7（升级 9）→ 固定 8；额外生成 1 张灵魂
+        [typeof(Haunt)] = _ => [new HpLossVar(8m)],
+
+        // 钙化：奥斯提攻击加成 4（升级 6）→ 3（升级 5）；
+        //       并额外记录「每次攻击给你 2（升级 3）格挡」
+        [typeof(Calcify)] = _ => [new PowerVar<CalcifyPower>(3m), new BlockVar(2m, ValueProp.Unpowered)],
     };
 
     /// <summary>
@@ -255,6 +293,112 @@ internal static class Reworks
             // 副作用：吸引仇恨期间，奥斯提每失去 2 点生命值，玩家获得 1 层灾厄
             await PowerCmd.Apply<SpilloverPower>(ctx, card.Owner.Creature, turns, card.Owner.Creature, card);
         },
+
+        // 紧追不放：奥斯提攻击目标，然后在目标身上挂「紧追不放」（本回合内每被打 2 次给易伤）。
+        [typeof(SicEm)] = async (card, ctx, play) =>
+        {
+            if (play.Target is not { } target) return;
+
+            if (!Osty.CheckMissingWithAnim(card.Owner) && card.Owner.Osty is { } osty)
+            {
+                await DamageCmd.Attack(card.DynamicVars.OstyDamage.BaseValue)
+                    .FromOsty(osty, card, play)
+                    .Targeting(target)
+                    .WithHitFx("vfx/vfx_attack_blunt", null, "blunt_attack.mp3")
+                    .Execute(ctx);
+            }
+
+            await PowerCmd.Apply<RelentlessPower>(ctx, target,
+                card.DynamicVars["RelentlessPower"].BaseValue, card.Owner.Creature, card);
+        },
+
+        // 领会：先获得 6 层灾厄（会触发死亡之门 / 厄运之衣），再抽牌。
+        [typeof(Parse)] = async (card, ctx, play) =>
+        {
+            await DoomUtil.ApplyToSelf(ctx, card, 6m);
+            await CardPileCmd.Draw(ctx, card.DynamicVars.Cards.BaseValue, card.Owner);
+        },
+
+        // 挽歌：X 费。召唤 X 次，然后把 X+2 张灵魂（升级后是灵魂+）放进抽牌堆。
+        [typeof(Dirge)] = async (card, ctx, play) =>
+        {
+            await CreatureCmd.TriggerAnim(card.Owner.Creature, "Cast", card.Owner.Character.CastAnimDelay);
+
+            int x = card.ResolveEnergyXValue();
+            for (int i = 0; i < x; i++)
+            {
+                await OstyCmd.Summon(ctx, card.Owner, card.DynamicVars.Summon.BaseValue, card);
+            }
+
+            var souls = Soul.Create(card.Owner, x + 2, card.CombatState).ToList();
+            if (card.IsUpgraded)
+            {
+                foreach (var soul in souls)
+                    CardCmd.Upgrade(soul);
+            }
+
+            CardCmd.PreviewCardPileAdd(await CardPileCmd.AddGeneratedCardsToCombat(
+                souls, PileType.Draw, card.Owner, CardPilePosition.Random));
+        },
+
+        // 增生：治疗奥斯提，然后按「它本回合已经增加的生命值」给你等量格挡（含这次治疗）。
+        [typeof(Spur)] = async (card, ctx, play) =>
+        {
+            if (card.Owner.Osty is not { IsAlive: true } osty) return;
+
+            await CreatureCmd.Heal(osty, card.DynamicVars.Heal.BaseValue);
+
+            decimal gained = OstyHpGainTracker.GainedThisTurn(card.Owner);
+            if (gained <= 0m) return;
+
+            await CreatureCmd.GainBlock(card.Owner.Creature, gained, ValueProp.Move, play);
+        },
+
+        // 腐烂：虚弱、易伤各施加两次（每次 1（升级 2）层，合计 2（升级 4）层）。
+        [typeof(Putrefy)] = async (card, ctx, play) =>
+        {
+            if (play.Target is not { } target) return;
+
+            await CreatureCmd.TriggerAnim(card.Owner.Creature, "Cast", card.Owner.Character.CastAnimDelay);
+            decimal amount = card.DynamicVars["Power"].BaseValue;
+
+            for (int i = 0; i < 2; i++)
+                await PowerCmd.Apply<WeakPower>(ctx, target, amount, card.Owner.Creature, card);
+
+            for (int i = 0; i < 2; i++)
+                await PowerCmd.Apply<VulnerablePower>(ctx, target, amount, card.Owner.Creature, card);
+        },
+
+        // 倒数计时：只挂自制能力（只在自己回合触发 + 自己等量消灾厄的逻辑都在能力里）
+        [typeof(Countdown)] = async (card, ctx, play) =>
+        {
+            await CreatureCmd.TriggerAnim(card.Owner.Creature, "PowerUp", card.Owner.Character.PowerUpAnimDelay);
+            await PowerCmd.Apply<CountdownReworkPower>(ctx, card.Owner.Creature,
+                card.DynamicVars["CountdownReworkPower"].BaseValue, card.Owner.Creature, card);
+        },
+
+        // 纠缠：挂原版能力（固定 8 点生命流失）；升级后才额外把 1 张普通灵魂放进手牌
+        [typeof(Haunt)] = async (card, ctx, play) =>
+        {
+            await CreatureCmd.TriggerAnim(card.Owner.Creature, "PowerUp", card.Owner.Character.PowerUpAnimDelay);
+            await PowerCmd.Apply<HauntPower>(ctx, card.Owner.Creature,
+                card.DynamicVars.HpLoss.BaseValue, card.Owner.Creature, card);
+
+            if (!card.IsUpgraded) return;
+
+            var souls = Soul.Create(card.Owner, 1, card.CombatState);
+            CardCmd.PreviewCardPileAdd(await CardPileCmd.AddGeneratedCardsToCombat(souls, PileType.Hand, card.Owner));
+        },
+
+        // 钙化：挂原版的伤害能力，另外把「每段攻击给多少格挡」记进 CalcifyGuard
+        [typeof(Calcify)] = async (card, ctx, play) =>
+        {
+            await CreatureCmd.TriggerAnim(card.Owner.Creature, "PowerUp", card.Owner.Character.PowerUpAnimDelay);
+            await PowerCmd.Apply<CalcifyPower>(ctx, card.Owner.Creature,
+                card.DynamicVars["CalcifyPower"].BaseValue, card.Owner.Creature, card);
+
+            CalcifyGuard.Add(card.Owner.Creature, card.DynamicVars.Block.BaseValue);
+        },
     };
 
     /// <summary>
@@ -273,6 +417,9 @@ internal static class Reworks
 
         // 违逆：虚弱 1 → 2（原版只加格挡）
         [typeof(Defy)] = card => card.DynamicVars.Weak.UpgradeValueBy(1m),
+
+        // 死亡使者：虚弱 1 → 2（原版只加灾厄）
+        [typeof(Deathbringer)] = card => card.DynamicVars.Weak.UpgradeValueBy(1m),
     };
 
     /// <summary>
@@ -289,5 +436,64 @@ internal static class Reworks
             card.DynamicVars.Summon.UpgradeValueBy(2m);
             card.DynamicVars["GuardTurns"].UpgradeValueBy(1m);
         },
+
+        // 紧追不放：原版升级「奥斯提伤害 +1、召唤 +1」，现在是「奥斯提伤害 8 → 11、易伤 1 → 2」
+        [typeof(SicEm)] = card =>
+        {
+            card.DynamicVars.OstyDamage.UpgradeValueBy(3m);
+            card.DynamicVars["RelentlessPower"].UpgradeValueBy(1m);
+        },
+
+        // 增生：原版升级「召唤 +2、治疗 +2」，现在没有召唤了，治疗 5 → 8
+        [typeof(Spur)] = card => card.DynamicVars.Heal.UpgradeValueBy(3m),
+
+        // 倒数计时：原版升级去取 "CountdownPower" 这个已经不存在的键，这里自己 +3
+        [typeof(Countdown)] = card => card.DynamicVars["CountdownReworkPower"].UpgradeValueBy(3m),
+
+        // 血肉戏法：原版 +4，现在 5 → 8 是 +3
+        [typeof(SleightOfFlesh)] = card => card.DynamicVars["SleightOfFleshPower"].UpgradeValueBy(3m),
+
+        // 纠缠：生命流失固定 8 不涨，升级只把生成的灵魂换成灵魂+
+        [typeof(Haunt)] = _ => { },
+
+        // 钙化：原版只 +2 伤害；现在伤害 +2（3 → 5）、格挡 +1（2 → 3）
+        [typeof(Calcify)] = card =>
+        {
+            card.DynamicVars["CalcifyPower"].UpgradeValueBy(2m);
+            card.DynamicVars.Block.UpgradeValueBy(1m);
+        },
+    };
+
+    /// <summary>
+    /// 整段替换关键词（原版的消耗/虚无之类需要加减时用这张表）。
+    /// </summary>
+    public static readonly Dictionary<Type, CardKeyword[]> Keywords = new()
+    {
+        // 腐烂：原本只有「消耗」，现在再加「虚无」
+        [typeof(Putrefy)] = [CardKeyword.Exhaust, CardKeyword.Ethereal],
+
+        // 血肉戏法：加「虚无」
+        [typeof(SleightOfFlesh)] = [CardKeyword.Ethereal],
+
+        // 厄运之衣：加「虚无」
+        [typeof(Shroud)] = [CardKeyword.Ethereal],
+    };
+
+    /// <summary>
+    /// 改费用（原版费用写在构造函数里，这里覆盖 CanonicalEnergyCost）。
+    /// </summary>
+    public static readonly Dictionary<Type, int> Costs = new()
+    {
+        // 厄运之衣：1 费 → 2 费
+        [typeof(Shroud)] = 2,
+    };
+
+    /// <summary>
+    /// 整段替换悬停提示（去掉了某个数值时，原版提示会去取不存在的变量，这里直接清空）。
+    /// </summary>
+    public static readonly Dictionary<Type, Func<CardModel, IEnumerable<IHoverTip>>> Tips = new()
+    {
+        // 增生：已经没有召唤了，原版的「召唤」悬停提示要去掉
+        [typeof(Spur)] = _ => [],
     };
 }
