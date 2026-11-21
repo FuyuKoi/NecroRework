@@ -50,7 +50,7 @@ internal static class Reworks
         [typeof(Reave)] = _ => [new DamageVar(11m, ValueProp.Move), new CardsVar(1)],
 
         // 玷污：伤害 13（升级 17）→ 12（升级 16）；额外转移至多 6（升级 8）层灾厄
-        [typeof(Defile)] = _ => [new DamageVar(13m, ValueProp.Move), new PowerVar<DoomPower>(8m)],
+        [typeof(Defile)] = _ => [new DamageVar(13m, ValueProp.Move), new PowerVar<DoomPower>(12m)],
 
         // 荒疫打击：伤害 8（升级 10）→ 10（升级 12）；开局先获得 5 点灾厄（固定值）
         [typeof(BlightStrike)] = _ => [new DamageVar(12m, ValueProp.Move)],
@@ -127,13 +127,25 @@ internal static class Reworks
         [typeof(Calcify)] = _ => [new PowerVar<CalcifyPower>(3m), new BlockVar(2m, ValueProp.Unpowered)],
 
         // 洁净：召唤 3（升级 5）→ 改成「移除 6（升级 9）层灾厄」，数值用灾厄变量显示
-        [typeof(Cleanse)] = _ => [new PowerVar<DoomPower>(6m)],
+        [typeof(Cleanse)] = _ => [new PowerVar<DoomPower>(9m)],
 
         // 厄运之衣：每次施加灾厄时的格挡 3（升级 4）→ 4（升级 5），升级仍 +1
         [typeof(Shroud)] = _ => [new BlockVar(4m, ValueProp.Unpowered)],
 
-        // 违逆：格挡 6（升级 9）→ 7（升级 10）
-        [typeof(Defy)] = _ => [new BlockVar(7m, ValueProp.Move), new PowerVar<WeakPower>(1m)],
+        // 违逆：格挡 6（升级 9）→ 9（升级 12）
+        [typeof(Defy)] = _ => [new BlockVar(9m, ValueProp.Move), new PowerVar<WeakPower>(1m)],
+
+        // 捕捉灵魂：原版是 3（4）点无法格挡的生命流失 + 3（4）张灵魂，
+        //           追加「这名敌人在本回合减少 3（升级 4）点力量」
+        [typeof(CaptureSpirit)] = _ =>
+        [
+            new DamageVar(3m, ValueProp.Unblockable | ValueProp.Unpowered | ValueProp.Move),
+            new CardsVar(3),
+            new DynamicVar("StrengthLoss", 3m)
+        ],
+
+        // 弱化之触：原版只减 8（11）点临时力量，现在自己获得 6 层灾厄，减力量提到 12（升级 16）
+        [typeof(EnfeeblingTouch)] = _ => [new DynamicVar("StrengthLoss", 12m), new PowerVar<DoomPower>(6m)],
     };
 
     /// <summary>
@@ -156,13 +168,13 @@ internal static class Reworks
             await DoomUtil.TransferToEnemy(ctx, card, target, card.DynamicVars.Doom.BaseValue);
         },
 
-        // 荒疫打击：先给自己上 5 点灾厄（触发死亡之门 / 厄运之衣），再造成伤害，
+        // 荒疫打击：先给自己上 4 点灾厄（触发死亡之门 / 厄运之衣），再造成伤害，
         // 最后把「实际造成的伤害」等量转成敌人身上的灾厄。
         [typeof(BlightStrike)] = async (card, ctx, play) =>
         {
             if (play.Target is not { } target) return;
 
-            await DoomUtil.ApplyToSelf(ctx, card, 5m);
+            await DoomUtil.ApplyToSelf(ctx, card, 4m);
 
             var attack = await DamageCmd.Attack(card.DynamicVars.Damage.BaseValue)
                 .FromCard(card, play)
@@ -220,11 +232,11 @@ internal static class Reworks
                 .Execute(ctx);
         },
 
-        // 鬼火：获得 2 费，然后获得 6 层灾厄（会触发死亡之门 / 厄运之衣）。
+        // 鬼火：获得 2 费，然后获得 5 层灾厄（会触发死亡之门 / 厄运之衣）。
         [typeof(Wisp)] = async (card, ctx, play) =>
         {
             await PlayerCmd.GainEnergy(card.DynamicVars.Energy.IntValue, card.Owner);
-            await DoomUtil.ApplyToSelf(ctx, card, 6m);
+            await DoomUtil.ApplyToSelf(ctx, card, 5m);
         },
 
         // 鞭打：先把至多 7 层灾厄从自己（角色 → 奥斯提）转给目标，再给目标上 14 层，最后抽 2 张。
@@ -233,7 +245,7 @@ internal static class Reworks
             if (play.Target is not { } target) return;
 
             await CreatureCmd.TriggerAnim(card.Owner.Creature, "Cast", card.Owner.Character.CastAnimDelay);
-            await DoomUtil.TransferToEnemy(ctx, card, target, 9m);
+            await DoomUtil.TransferToEnemy(ctx, card, target, 12m);
             await PowerCmd.Apply<DoomPower>(ctx, target, card.DynamicVars.Doom.BaseValue, card.Owner.Creature, card);
             await CardPileCmd.Draw(ctx, card.DynamicVars.Cards.BaseValue, card.Owner);
         },
@@ -478,12 +490,62 @@ internal static class Reworks
                 await CreatureCmd.GainBlock(card.Owner.Creature, removed, ValueProp.Move, play);
             }
 
-            CardModel? picked = (await CardSelectCmd.FromCombatPile(ctx, PileType.Draw.GetPile(card.Owner), card.Owner,
-                new CardSelectorPrefs(CardSelectorPrefs.ExhaustSelectionPrompt, 1))).FirstOrDefault();
+            // 消耗那一步是可选的：抽牌堆没牌、或者选牌界面出问题时，
+            // 已经结算掉的灾厄与格挡不会被撤销（这就是「没能消耗卡牌也能减灾厄」）。
+            CardPile drawPile = PileType.Draw.GetPile(card.Owner);
+            CardModel? picked = null;
+            if (drawPile != null && drawPile.Cards.Count > 0)
+            {
+                try
+                {
+                    picked = (await CardSelectCmd.FromCombatPile(ctx, drawPile, card.Owner,
+                        new CardSelectorPrefs(CardSelectorPrefs.ExhaustSelectionPrompt, 1))).FirstOrDefault();
+                }
+                catch (Exception ex)
+                {
+                    Main.Log.Info("洁净：选牌跳过：" + ex.Message);
+                }
+            }
+            else
+            {
+                Main.Log.Info("洁净：抽牌堆为空，跳过消耗（灾厄与格挡照常结算）");
+            }
+
             if (picked != null)
             {
                 await CardCmd.Exhaust(ctx, picked);
             }
+        },
+
+        // 捕捉灵魂：3（升级 4）点无法格挡的生命流失 + 把 3（升级 4）张灵魂洗进抽牌堆，
+        //           再让这名敌人本回合减少 3（升级 4）点力量（回合结束自动还回去）。
+        [typeof(CaptureSpirit)] = async (card, ctx, play) =>
+        {
+            if (play.Target is not { } target) return;
+
+            await CreatureCmd.TriggerAnim(card.Owner.Creature, "Cast", card.Owner.Character.CastAnimDelay);
+
+            await CreatureCmd.Damage(ctx, target, card.DynamicVars.Damage, card, play);
+
+            List<Soul> souls = Soul.Create(card.Owner, card.DynamicVars.Cards.IntValue, card.CombatState).ToList();
+            CardCmd.PreviewCardPileAdd(
+                await CardPileCmd.AddGeneratedCardsToCombat(souls, PileType.Draw, card.Owner, CardPilePosition.Random));
+
+            await PowerCmd.Apply<CaptureSpiritStrengthDownPower>(ctx, target,
+                card.DynamicVars["StrengthLoss"].BaseValue, card.Owner.Creature, card);
+        },
+
+        // 弱化之触：先自己吃 6 层灾厄（触发死亡之门 / 厄运之衣），再给对方挂临时减力量
+        [typeof(EnfeeblingTouch)] = async (card, ctx, play) =>
+        {
+            if (play.Target is not { } target) return;
+
+            await CreatureCmd.TriggerAnim(card.Owner.Creature, "Cast", card.Owner.Character.CastAnimDelay);
+
+            await DoomUtil.ApplyToSelf(ctx, card, card.DynamicVars.Doom.BaseValue);
+
+            await PowerCmd.Apply<EnfeeblingTouchPower>(ctx, target,
+                card.DynamicVars["StrengthLoss"].BaseValue, card.Owner.Creature, card);
         },
 
         // 虚空之唤：先照旧挂上「回合开始加牌」的能力，再从卡池里随机展示 3 张
@@ -571,6 +633,12 @@ internal static class Reworks
 
         // 增生：原版升级「召唤 +2、治疗 +2」，现在没有召唤了，治疗 5 → 8
         [typeof(Spur)] = card => card.DynamicVars.Heal.UpgradeValueBy(3m),
+
+        // 捕捉灵魂：原版升级是伤害 +1、灵魂 +1；追加的减力量也是 3 → 4
+        [typeof(CaptureSpirit)] = card => card.DynamicVars["StrengthLoss"].UpgradeValueBy(1m),
+
+        // 弱化之触：这张表是「整段替换」，原版的 +3 不会执行，所以这里自己给足 +4（12 → 16）
+        [typeof(EnfeeblingTouch)] = card => card.DynamicVars["StrengthLoss"].UpgradeValueBy(4m),
 
         // 倒数计时：原版升级去取 "CountdownPower" 这个已经不存在的键，这里自己 +3
         [typeof(Countdown)] = card => card.DynamicVars["CountdownReworkPower"].UpgradeValueBy(3m),

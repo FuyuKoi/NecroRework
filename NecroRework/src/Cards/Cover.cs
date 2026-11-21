@@ -17,7 +17,7 @@ public sealed class Cover : CardModel
 {
     private const decimal OstyDamage = 9m;
 
-    private const decimal DoomAbsorb = 15m;
+    private const decimal DoomAbsorb = 20m;
 
     private const decimal Block = 5m;
 

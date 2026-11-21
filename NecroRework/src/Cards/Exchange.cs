@@ -1,4 +1,4 @@
-﻿using MegaCrit.Sts2.Core.CardSelection;
+using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
@@ -12,7 +12,7 @@ namespace NecroRework.Cards;
 /// <summary>
 /// 交换：0 费技能（普通品质），固有 + 保留 + 消耗。
 /// 选择手牌中至多 2 张虚无牌，让它们下次打出的费用 -1；
-/// 每选中一张，你获得 7（升级 5）层灾厄；最后弃一张牌。
+/// 每选中一张，你获得 6（升级 4）层灾厄；最后弃一张牌。
 /// </summary>
 public sealed class Exchange : CardModel
 {
@@ -21,7 +21,7 @@ public sealed class Exchange : CardModel
     {
     }
 
-    protected override IEnumerable<DynamicVar> CanonicalVars => [new PowerVar<DoomPower>(7m)];
+    protected override IEnumerable<DynamicVar> CanonicalVars => [new PowerVar<DoomPower>(6m)];
 
     public override IEnumerable<CardKeyword> CanonicalKeywords =>
         [CardKeyword.Innate, CardKeyword.Retain, CardKeyword.Exhaust];
@@ -62,7 +62,7 @@ public sealed class Exchange : CardModel
 
     protected override void OnUpgrade()
     {
-        // 灾厄 7 → 5
+        // 灾厄 6 → 4
         DynamicVars.Doom.UpgradeValueBy(-2m);
     }
 }

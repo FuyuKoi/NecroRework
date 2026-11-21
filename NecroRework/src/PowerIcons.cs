@@ -91,6 +91,10 @@ internal static class PowerIcons
                 case GhostLanternPower:
                     __result = ModelDb.Power<SpiritOfAshPower>().PackedIconPath;
                     break;
+                case CaptureSpiritStrengthDownPower:
+                    // 沿用原版「临时减力量」那个能力的图标
+                    __result = ModelDb.Power<MonarchsGazeStrengthDownPower>().PackedIconPath;
+                    break;
             }
         }
         catch (Exception e)

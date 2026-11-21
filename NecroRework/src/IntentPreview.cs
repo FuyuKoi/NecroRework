@@ -12,6 +12,7 @@ using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Afflictions;
 using MegaCrit.Sts2.Core.Models.Powers;
+using MegaCrit.Sts2.Core.Models.Monsters;
 using MegaCrit.Sts2.Core.MonsterMoves.Intents;
 using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.ValueProps;
@@ -174,6 +175,15 @@ internal static class IntentPreview
 		}
 
 		bool guard = ostyHp > 0 && osty.HasPower<OstyGuardPower>();
+
+		// 瓦皮（Wuppy）：「瓦皮的忠诚」在扣格挡之前就把攻击目标改成瓦皮自己，
+		// 所以它活着的每一段攻击，玩家既不掉血、也不消耗格挡；瓦皮被打死之后，
+		// 后面的段数（和后面的敌人）才回到「格挡 → 奥斯提」的老规则。
+		Creature wuppy = player.Player?.PlayerCombatState?.GetPet<Wuppy>();
+		bool wuppyGuarding = wuppy is { IsAlive: true } && wuppy.HasPower<WuppysLoyaltyPower>();
+		int wuppyBlock = wuppyGuarding ? wuppy!.Block : 0;
+		int wuppyHp = wuppyGuarding ? wuppy!.CurrentHp : 0;
+
 		var targets = combatState.Players.Select(p => p.Creature).ToList();
 
 		// 「吸引仇恨 + 多段攻击 + 厄运之衣」的连锁：
@@ -216,8 +226,32 @@ internal static class IntentPreview
 
 				for (int i = 0; i < repeats; i++)
 				{
-					int unblocked = Math.Max(0, single - block);
-					block = Math.Max(0, block - single);
+					int damage = single;
+
+					// 瓦皮先吃：它的格挡、再它的血；瓦皮被打死时，溢出的伤害会无缝接到玩家身上
+					if (wuppyGuarding)
+					{
+						int absorbed = Math.Min(wuppyBlock, damage);
+						wuppyBlock -= absorbed;
+						damage -= absorbed;
+
+						int hpLoss = Math.Min(wuppyHp, damage);
+						wuppyHp -= hpLoss;
+						damage -= hpLoss;
+
+						if (wuppyHp <= 0)
+						{
+							wuppyGuarding = false;
+						}
+					}
+
+					if (damage <= 0)
+					{
+						continue;
+					}
+
+					int unblocked = Math.Max(0, damage - block);
+					block = Math.Max(0, block - damage);
 					if (unblocked <= 0)
 					{
 						continue;

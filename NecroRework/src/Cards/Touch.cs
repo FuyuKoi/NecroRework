@@ -25,7 +25,7 @@ public sealed class Touch : CardModel
     }
 
     protected override IEnumerable<DynamicVar> CanonicalVars =>
-        [new DamageVar(5m, ValueProp.Move), new BlockVar(10m, ValueProp.Move)];
+        [new DamageVar(6m, ValueProp.Move), new BlockVar(10m, ValueProp.Move)];
 
     /// <summary>
     /// 没有奥斯提、或奥斯提撑不过这 4 点生命值时，和原版「奥斯提攻击牌」一样标红，

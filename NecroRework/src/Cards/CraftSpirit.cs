@@ -16,8 +16,8 @@ public sealed class CraftSpirit : CardModel
 {
     private const ValueProp HpLossProps = ValueProp.Unblockable | ValueProp.Unpowered | ValueProp.Move;
 
-    private const decimal OstyHpLoss = 15m;
-    private const decimal DoomToOsty = 6m;
+    private const decimal OstyHpLoss = 11m;
+    private const decimal DoomToOsty = 9m;
     private const decimal ExtraHpLoss = 4m;
     private const decimal MaxHpLoss = 20m;
 

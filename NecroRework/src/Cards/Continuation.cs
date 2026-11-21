@@ -10,7 +10,7 @@ namespace NecroRework.Cards;
 /// <summary>
 /// 延续：0 费技能（普通品质）。
 /// 获得 1 点费用；挂上「延续」能力——回合结束时没花完的费用像「冰淇淋」一样带到下一回合，
-/// 并按带过去的费用 × 3 倍（升级 2 倍）层数给玩家上灾厄。
+/// 并按带过去的费用 × 2 倍层数给玩家上灾厄。升级后获得「保留」。
 /// </summary>
 public sealed class Continuation : CardModel
 {
@@ -20,7 +20,7 @@ public sealed class Continuation : CardModel
     }
 
     protected override IEnumerable<DynamicVar> CanonicalVars =>
-        [new EnergyVar(1), new IntVar("DoomMult", 3m)];
+        [new EnergyVar(1), new IntVar("DoomMult", 2m)];
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {
@@ -28,14 +28,14 @@ public sealed class Continuation : CardModel
 
         await PlayerCmd.GainEnergy(DynamicVars.Energy.IntValue, Owner);
 
-        // 倍数直接当作能力的层数存着：未升级 3、升级后 2（重复打出会相加）。
+        // 倍数直接当作能力的层数存着：升级前后都是 2（重复打出会相加）。
         await PowerCmd.Apply<EnergyCarryPower>(
             choiceContext, Owner.Creature, DynamicVars["DoomMult"].BaseValue, Owner.Creature, this);
     }
 
     protected override void OnUpgrade()
     {
-        // 三倍 → 两倍
-        DynamicVars["DoomMult"].UpgradeValueBy(-1m);
+        // 升级只加「保留」，倍数不变
+        AddKeyword(CardKeyword.Retain);
     }
 }
