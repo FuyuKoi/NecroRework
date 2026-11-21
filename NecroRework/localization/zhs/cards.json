@@ -51,5 +51,9 @@
   "SUBLIMATION.title": "升华",
   "SUBLIMATION.description": "造成{CalculatedDamage:diff()}点伤害。\n下次抽到这张牌时，其耗能增加1点。\n这张牌的耗能每变化1点，其伤害在本场战斗中增加[blue]{IfUpgraded:show:12|8}[/blue]点。",
   "LIFE_AND_DEATH.title": "生与死",
-  "LIFE_AND_DEATH.description": "[gold]奥斯提[/gold]造成等同于其缺失生命值的伤害。\n你接下来获得的25层[gold]灾厄[/gold]将由[gold]奥斯提[/gold]承担，但他在获得这些灾厄时会受到等量伤害。"
+  "LIFE_AND_DEATH.description": "[gold]奥斯提[/gold]造成等同于其缺失生命值的伤害。\n你接下来获得的25层[gold]灾厄[/gold]将由[gold]奥斯提[/gold]承担，但他在获得这些灾厄时会受到等量伤害。",
+  "CLEANSE.description": "移除你与[gold]奥斯提[/gold]身上至多{DoomPower:diff()}层[gold]灾厄[/gold]，并按实际移除的层数获得等量[gold]格挡[/gold]。\n从你的[gold]抽牌堆[/gold]中选择一张牌将其[gold]消耗[/gold]。",
+  "CALL_OF_THE_VOID.description": "从三张随机[gold]虚无[/gold]牌中选择一张置入你的[gold]手牌[/gold]。\n在你的回合开始时，将{Cards:diff()}张随机牌添加到你的[gold]手牌[/gold]中。添加的牌会获得[gold]虚无[/gold]。",
+  "OVERDRAFT.title": "透支",
+  "OVERDRAFT.description": "获得{Energy:diff()}点[gold]费用[/gold]。\n在本回合获得2层[gold]死亡律动[/gold]。"
 }

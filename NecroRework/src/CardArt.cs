@@ -26,6 +26,7 @@ internal static class CardArt
         [typeof(CraftSpirit)] = "craft_spirit.png",
         [typeof(Continuation)] = "continuation.png",
         [typeof(GhostLantern)] = "ghost_lantern.png",
+        [typeof(Overdraft)] = "overdraft.png",
     };
 
     private static Texture2D _placeholder;

@@ -73,7 +73,7 @@ internal static class PullFromBelowRedirect
 
     private static void OnPlayWrapperPostfix(CardModel __instance) => PlayingCards.Remove(__instance);
 
-    private static bool ExhaustPrefix(CardModel card, ref Task<CardPileAddResult?> __result)
+    private static bool ExhaustPrefix(CardModel card, bool causedByEthereal, ref Task<CardPileAddResult?> __result)
     {
         try
         {
@@ -83,7 +83,16 @@ internal static class PullFromBelowRedirect
             var creature = player?.Creature;
             if (creature == null || !creature.IsAlive) return true;
 
-            if (!card.Keywords.Contains(CardKeyword.Ethereal)) return true;
+            var power = creature.GetPower<PullFromBelowPower>();
+            bool ethereal = card.Keywords.Contains(CardKeyword.Ethereal);
+
+            // 身上有亡魂牵引时，把每次「消耗决议」都记下来，方便排查到底是被谁吃掉的。
+            if (power != null && power.Amount > 0)
+            {
+                Main.Log.Info($"[{Main.ModId}] 亡魂牵引：消耗决议 {card.Id} 牌堆={card.Pile?.Type.ToString() ?? "无"} 虚无={ethereal} 回合结束自烧={causedByEthereal} 正在打出={PlayingCards.Contains(card)} 剩余层数={power.Amount}");
+            }
+
+            if (!ethereal) return true;
 
             // 正在被打出的牌（手动打出 + 自身带消耗）→ 这是主动消耗，放行原版
             if (PlayingCards.Contains(card)) return true;
@@ -91,7 +100,6 @@ internal static class PullFromBelowRedirect
             var pile = card.Pile?.Type;
             if (pile != PileType.Hand && pile != PileType.Draw && pile != PileType.Discard) return true;
 
-            var power = creature.GetPower<PullFromBelowPower>();
             if (power == null || power.Amount <= 0) return true;
 
             __result = Redirect(card, power);

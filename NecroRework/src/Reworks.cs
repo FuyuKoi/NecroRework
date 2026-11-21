@@ -4,6 +4,7 @@ using MegaCrit.Sts2.Core.Combat.History.Entries;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
+using MegaCrit.Sts2.Core.Factories;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
@@ -124,6 +125,9 @@ internal static class Reworks
         // 钙化：奥斯提攻击加成 4（升级 6）→ 3（升级 5）；
         //       并额外记录「每次攻击给你 2（升级 3）格挡」
         [typeof(Calcify)] = _ => [new PowerVar<CalcifyPower>(3m), new BlockVar(2m, ValueProp.Unpowered)],
+
+        // 洁净：召唤 3（升级 5）→ 改成「移除 6（升级 9）层灾厄」，数值用灾厄变量显示
+        [typeof(Cleanse)] = _ => [new PowerVar<DoomPower>(6m)],
     };
 
     /// <summary>
@@ -437,6 +441,82 @@ internal static class Reworks
 
             CalcifyGuard.Add(card.Owner.Creature, card.DynamicVars.Block.BaseValue);
         },
+
+        // 洁净：移除最多 6（升级 9）层灾厄（先扣骨妹、不够再扣奥斯提），
+        //       按实际移除掉的层数获得等量格挡；之后照旧从抽牌堆消耗一张牌。
+        [typeof(Cleanse)] = async (card, ctx, play) =>
+        {
+            int budget = (int)card.DynamicVars.Doom.BaseValue;
+            int removed = 0;
+
+            int fromSelf = Math.Min(DoomUtil.PlayerDoom(card), budget);
+            if (fromSelf > 0)
+            {
+                await DoomUtil.RemoveDoom(ctx, card, card.Owner.Creature, fromSelf);
+                removed += fromSelf;
+            }
+
+            if (removed < budget && card.Owner.Osty is { IsAlive: true } osty)
+            {
+                int fromOsty = Math.Min(DoomUtil.DoomOf(osty), budget - removed);
+                if (fromOsty > 0)
+                {
+                    await DoomUtil.RemoveDoom(ctx, card, osty, fromOsty);
+                    removed += fromOsty;
+                }
+            }
+
+            if (removed > 0)
+            {
+                await CreatureCmd.GainBlock(card.Owner.Creature, removed, ValueProp.Move, play);
+            }
+
+            CardModel? picked = (await CardSelectCmd.FromCombatPile(ctx, PileType.Draw.GetPile(card.Owner), card.Owner,
+                new CardSelectorPrefs(CardSelectorPrefs.ExhaustSelectionPrompt, 1))).FirstOrDefault();
+            if (picked != null)
+            {
+                await CardCmd.Exhaust(ctx, picked);
+            }
+        },
+
+        // 虚空之唤：先照旧挂上「回合开始加牌」的能力，再从卡池里随机展示 3 张
+        // 「升级前就带虚无」的牌，选中一张置入手牌。
+        [typeof(CallOfTheVoid)] = async (card, ctx, play) =>
+        {
+            await CreatureCmd.TriggerAnim(card.Owner.Creature, "PowerUp", card.Owner.Character.PowerUpAnimDelay);
+            await PowerCmd.Apply<CallOfTheVoidPower>(ctx, card.Owner.Creature,
+                card.DynamicVars.Cards.BaseValue, card.Owner.Creature, card);
+
+            List<CardModel> ethereal = card.Owner.Character.CardPool
+                .GetUnlockedCards(card.Owner.UnlockState, card.Owner.RunState.CardMultiplayerConstraint)
+                .Where(c => c.CanonicalKeywords.Contains(CardKeyword.Ethereal))
+                .ToList();
+
+            if (ethereal.Count == 0)
+            {
+                Main.Log.Info($"[{Main.ModId}] 虚空之唤：卡池里没有虚无牌，跳过选择");
+                return;
+            }
+
+            // 按原版 Quasar/Discovery 的写法：GetDistinctForCombat 负责建牌、设 Owner、去重，
+            // 直接 ToMutable() 拿到的牌没有 Owner，选择界面会空着，玩家看不到任何选项。
+            List<CardModel> offered = CardFactory
+                .GetDistinctForCombat(card.Owner, ethereal, 3, card.Owner.RunState.Rng.CombatCardGeneration)
+                .ToList();
+
+            if (offered.Count == 0)
+            {
+                Main.Log.Info($"[{Main.ModId}] 虚空之唤：抽不出可展示的虚无牌（候选 {ethereal.Count} 张），跳过选择");
+                return;
+            }
+
+            CardModel? chosen = offered.Count == 1
+                ? offered[0]
+                : await CardSelectCmd.FromChooseACardScreen(ctx, offered, card.Owner, canSkip: true);
+            if (chosen == null) return;
+
+            CardCmd.PreviewCardPileAdd(await CardPileCmd.AddGeneratedCardToCombat(chosen, PileType.Hand, card.Owner));
+        },
     };
 
     /// <summary>
@@ -500,6 +580,9 @@ internal static class Reworks
             card.DynamicVars["CalcifyPower"].UpgradeValueBy(2m);
             card.DynamicVars.Block.UpgradeValueBy(1m);
         },
+
+        // 洁净：原版是召唤 3 → 5，现在改成灾厄 6 → 9
+        [typeof(Cleanse)] = card => card.DynamicVars.Doom.UpgradeValueBy(3m),
     };
 
     /// <summary>
@@ -533,5 +616,8 @@ internal static class Reworks
     {
         // 增生：已经没有召唤了，原版的「召唤」悬停提示要去掉
         [typeof(Spur)] = _ => [],
+
+        // 洁净：召唤改成移除灾厄，原版「召唤」悬停提示要去掉，只留「消耗」提示
+        [typeof(Cleanse)] = _ => [HoverTipFactory.FromKeyword(CardKeyword.Exhaust)],
     };
 }

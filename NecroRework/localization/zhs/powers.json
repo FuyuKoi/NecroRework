@@ -20,5 +20,7 @@
   "SIC_EM_COUNTER_POWER.title": "紧追不放的计数",
   "SIC_EM_COUNTER_POWER.description": "[gold]奥斯提[/gold]再攻击这名敌人{Amount}次后，就会施加[gold]易伤[/gold]。",
   "LIFE_AND_DEATH_POWER.title": "生与死",
-  "LIFE_AND_DEATH_POWER.description": "接下来你获得的{Amount}层[gold]灾厄[/gold]将由[gold]奥斯提[/gold]承担，他在承受这些[gold]灾厄[/gold]时会受到等量伤害。\n（还剩{Amount}层）"
+  "LIFE_AND_DEATH_POWER.description": "接下来你获得的{Amount}层[gold]灾厄[/gold]将由[gold]奥斯提[/gold]承担，他在承受这些[gold]灾厄[/gold]时会受到等量伤害。\n（还剩{Amount}层）",
+  "DEATH_RHYTHM_POWER.title": "死亡律动",
+  "DEATH_RHYTHM_POWER.description": "在本回合，你每打出一张牌就受到2点伤害。不可再额外叠加。"
 }

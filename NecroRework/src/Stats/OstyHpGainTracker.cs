@@ -37,16 +37,30 @@ internal static class OstyHpGainTracker
             prefix: new HarmonyMethod(typeof(OstyHpGainTracker), nameof(HealPrefix)),
             postfix: new HarmonyMethod(typeof(OstyHpGainTracker), nameof(HealPostfix)));
 
-        var turnStart = AccessTools.Method(typeof(Hook), "AfterPlayerTurnStart");
+        // 注意：清零必须发生在「回合开始的各种遗物效果之前」。
+        // 起始遗物「不灭命匣」（PhylacteryUnbound）在 Hook.AfterSideTurnStart 里自动召唤，
+        // 而那个钩子早于 Hook.AfterPlayerTurnStart —— 所以旧写法（挂在 AfterPlayerTurnStart 清零）
+        // 会把遗物刚加的那几点血一起抹掉，增生就吃不到它。
+        // 改成挂 BeforeSideTurnStart（同一回合更早的位置）清零。
+        var turnStart = AccessTools.Method(typeof(Hook), "BeforeSideTurnStart",
+            [typeof(MegaCrit.Sts2.Core.Combat.ICombatState), typeof(MegaCrit.Sts2.Core.Combat.CombatSide),
+             typeof(IReadOnlyList<Creature>)]);
+
         if (turnStart == null)
         {
-            Main.Log.Warn($"[{Main.ModId}] 找不到 Hook.AfterPlayerTurnStart，奥斯提回血量不会按回合清零");
+            Main.Log.Warn($"[{Main.ModId}] 找不到 Hook.BeforeSideTurnStart，奥斯提回血量不会按回合清零");
         }
         else
         {
             harmony.Patch(turnStart,
-                postfix: new HarmonyMethod(typeof(OstyHpGainTracker), nameof(AfterPlayerTurnStartPostfix)));
+                postfix: new HarmonyMethod(typeof(OstyHpGainTracker), nameof(BeforeSideTurnStartPostfix)));
         }
+
+        // 旧写法（回合开始遗物结算之后才清零，会把自动召唤加的血抹掉），已停用：
+        // var legacyTurnStart = AccessTools.Method(typeof(Hook), "AfterPlayerTurnStart");
+        // if (legacyTurnStart != null)
+        //     harmony.Patch(legacyTurnStart,
+        //         postfix: new HarmonyMethod(typeof(OstyHpGainTracker), nameof(AfterPlayerTurnStartPostfix)));
     }
 
     /// <summary>玩家本回合内，奥斯提一共增加了多少点当前生命值。</summary>
@@ -85,6 +99,13 @@ internal static class OstyHpGainTracker
         {
             Main.Log.Error($"[{Main.ModId}] 记录奥斯提回血量失败: {e}");
         }
+    }
+
+    private static void BeforeSideTurnStartPostfix(MegaCrit.Sts2.Core.Combat.CombatSide side)
+    {
+        // 玩家回合刚开始（此时遗物/开场效果还没结算）：把上一回合的累计清掉。
+        if (side != MegaCrit.Sts2.Core.Combat.CombatSide.Player) return;
+        Gained.Clear();
     }
 
     private static void AfterPlayerTurnStartPostfix(Player player)

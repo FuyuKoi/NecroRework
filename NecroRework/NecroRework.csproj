@@ -49,6 +49,8 @@
     <None Include="craft_spirit.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="continuation.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="ghost_lantern.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="overdraft.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="death_rhythm.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

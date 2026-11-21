@@ -16,9 +16,12 @@ namespace NecroRework;
 internal static class PowerIcons
 {
     private const string DieForYouIconFile = "die_for_you_icon.png";
+    private const string DeathRhythmIconFile = "death_rhythm.png";
 
     private static Texture2D? _dieForYouIcon;
     private static bool _dieForYouIconTried;
+    private static Texture2D? _deathRhythmIcon;
+    private static bool _deathRhythmIconTried;
 
     public static void Install(Harmony harmony)
     {
@@ -98,51 +101,76 @@ internal static class PowerIcons
 
     public static void IconPostfix(object __instance, ref Texture2D __result)
     {
-        if (__instance is not DieForYouPower) return;
-
-        var icon = LoadDieForYouIcon();
-        if (icon != null)
-            __result = icon;
+        switch (__instance)
+        {
+            case DieForYouPower:
+            {
+                var icon = LoadDieForYouIcon();
+                if (icon != null) __result = icon;
+                break;
+            }
+            case DeathRhythmPower:
+            {
+                var icon = LoadCustomIcon(DeathRhythmIconFile, ref _deathRhythmIcon, ref _deathRhythmIconTried, "死亡律动");
+                if (icon != null) __result = icon;
+                break;
+            }
+        }
     }
 
     public static void BigIconPostfix(object __instance, ref Texture2D __result)
     {
-        if (__instance is not DieForYouPower) return;
-
-        var icon = LoadDieForYouIcon();
-        if (icon != null)
-            __result = icon;
+        switch (__instance)
+        {
+            case DieForYouPower:
+            {
+                var icon = LoadDieForYouIcon();
+                if (icon != null) __result = icon;
+                break;
+            }
+            case DeathRhythmPower:
+            {
+                var icon = LoadCustomIcon(DeathRhythmIconFile, ref _deathRhythmIcon, ref _deathRhythmIconTried, "死亡律动");
+                if (icon != null) __result = icon;
+                break;
+            }
+        }
     }
 
     /// <summary>懒加载 mod 目录下的自定义图标；读不到就沿用原版图标。</summary>
     private static Texture2D? LoadDieForYouIcon()
     {
-        if (_dieForYouIconTried) return _dieForYouIcon;
-        _dieForYouIconTried = true;
+        return LoadCustomIcon(DieForYouIconFile, ref _dieForYouIcon, ref _dieForYouIconTried, "为你而死");
+    }
+
+    private static Texture2D? LoadCustomIcon(string fileName, ref Texture2D? cache, ref bool tried, string what)
+    {
+        if (tried) return cache;
+        tried = true;
 
         try
         {
-            var path = Path.Combine(Main.ModDirectory, DieForYouIconFile);
+            var path = Path.Combine(Main.ModDirectory, fileName);
             if (!File.Exists(path))
             {
-                Main.Log.Warn($"[{Main.ModId}] 找不到 {path}，为你而死继续用原版图标");
+                Main.Log.Warn($"[{Main.ModId}] 找不到 {path}，{what}继续用原版图标");
                 return null;
             }
 
             var image = Image.LoadFromFile(path);
             if (image == null)
             {
-                Main.Log.Warn($"[{Main.ModId}] 读取 {path} 失败，为你而死继续用原版图标");
+                Main.Log.Warn($"[{Main.ModId}] 读取 {path} 失败，{what}继续用原版图标");
                 return null;
             }
 
-            _dieForYouIcon = ImageTexture.CreateFromImage(image);
+            cache = ImageTexture.CreateFromImage(image);
         }
         catch (Exception e)
         {
-            Main.Log.Error($"[{Main.ModId}] 加载为你而死图标失败: {e}");
+            Main.Log.Error($"[{Main.ModId}] 加载{what}图标失败: {e}");
         }
 
-        return _dieForYouIcon;
+        return cache;
     }
 }
