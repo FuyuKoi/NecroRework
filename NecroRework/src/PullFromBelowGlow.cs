@@ -9,12 +9,14 @@ using NecroRework.Powers;
 namespace NecroRework;
 
 /// <summary>
-/// 亡魂牵引手牌提示：手牌从左到右的前 N 张里，带「虚无」的牌会亮起青绿色的高亮描边
-/// （N = 亡魂牵引层数）。颜色是不可生效红色 (0.83, 0, 0.33) 的反相，即 #2BFFAB。
+/// 亡魂牵引手牌提示：手牌从左到右的前 N 张里，带「虚无」的牌会亮起深蓝色的高亮描边
+/// （N = 亡魂牵引层数）。颜色 #171380 = (23, 19, 128)。
 /// </summary>
 internal static class PullFromBelowGlow
 {
-    private static readonly Color GlowColor = new(0.17f, 1f, 0.67f, 0.98f);
+    private static readonly Color GlowColor = new(23f / 255f, 19f / 255f, 128f / 255f, 0.98f);
+
+    private static int _trace;
 
     public static void Install(Harmony harmony)
     {
@@ -51,19 +53,17 @@ internal static class PullFromBelowGlow
             return;
         }
 
-        if (!card.Keywords.Contains(CardKeyword.Ethereal))
-        {
-            return;
-        }
-
         int stacks = owner.Creature.GetPower<PullFromBelowPower>()?.Amount ?? 0;
-        if (stacks <= 0)
+        bool ethereal = card.Keywords.Contains(CardKeyword.Ethereal);
+        int rank = EtherealRankInHand(holder, card);
+
+        if (ethereal && _trace < 40)
         {
-            return;
+            _trace++;
+            Main.Log.Info($"[{Main.ModId}] 发光#{_trace} {card.Id} 虚无={ethereal} 第几张虚无={rank} 层数={stacks} 高亮节点={(node.CardHighlight == null ? "无" : "有")}");
         }
 
-        int index = IndexInHand(card);
-        if (index < 0 || index >= stacks)
+        if (!ethereal || stacks <= 0 || rank < 0 || rank >= stacks)
         {
             return;
         }
@@ -78,20 +78,52 @@ internal static class PullFromBelowGlow
         highlight.AnimShow();
     }
 
-    private static int IndexInHand(CardModel card)
+    /// <summary>
+    /// 「会被拦下的第几张」：手牌从左到右数，只数带「虚无」的牌，自己前面有几张。
+    /// 结算时也是按手牌顺序一张张烧，所以前 N 张虚无牌正好对应 N 层。
+    /// </summary>
+    private static int EtherealRankInHand(NHandCardHolder holder, CardModel card)
     {
+        var container = holder.GetParent();
+        if (container != null)
+        {
+            int rank = 0;
+            foreach (var child in container.GetChildren())
+            {
+                if (child is not NHandCardHolder h)
+                {
+                    continue;
+                }
+
+                if (ReferenceEquals(h, holder))
+                {
+                    return rank;
+                }
+
+                if (h.CardModel is { } other && other.Keywords.Contains(CardKeyword.Ethereal))
+                {
+                    rank++;
+                }
+            }
+        }
+
         var owner = card.Owner;
         if (owner == null)
         {
             return -1;
         }
 
-        var cards = PileType.Hand.GetPile(owner).Cards;
-        for (int i = 0; i < cards.Count; i++)
+        int pileRank = 0;
+        foreach (var other in PileType.Hand.GetPile(owner).Cards)
         {
-            if (ReferenceEquals(cards[i], card))
+            if (ReferenceEquals(other, card))
             {
-                return i;
+                return pileRank;
+            }
+
+            if (other.Keywords.Contains(CardKeyword.Ethereal))
+            {
+                pileRank++;
             }
         }
 
