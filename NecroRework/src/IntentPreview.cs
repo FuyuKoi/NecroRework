@@ -5,9 +5,15 @@ using System.Runtime.CompilerServices;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.addons.mega_text;
+using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
+using MegaCrit.Sts2.Core.Localization.DynamicVars;
+using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.MonsterMoves.Intents;
 using MegaCrit.Sts2.Core.Nodes.Combat;
+using MegaCrit.Sts2.Core.ValueProps;
+using NecroRework.Enchantments;
 using NecroRework.Powers;
 
 namespace NecroRework;
@@ -25,6 +31,9 @@ internal static class IntentPreview
 	// #C91515，不透明度 90%（E6）；字号 22 = 原来的 18 × 1.2
 	private const string ColorOpen = "[color=#c91515e6][font_size=22]";
 	private const string ColorClose = "[/font_size][/color]";
+
+	/// <summary>每张「飘荡」牌在回合结束自动消耗时给的格挡。</summary>
+	private const int DriftBlock = 4;
 
 	private static readonly AccessTools.FieldRef<NIntent, MegaRichTextLabel> ValueLabelRef =
 		AccessTools.FieldRefAccess<NIntent, MegaRichTextLabel>("_valueLabel");
@@ -131,7 +140,11 @@ internal static class IntentPreview
 			return;
 		}
 
-		int block = player.Block;
+		int block = player.Block + ProjectedEndOfTurnBlock(player) - ProjectedEndOfTurnSelfDamage(player);
+		if (block < 0)
+		{
+			block = 0;
+		}
 		Creature osty = player.Player?.Osty;
 		int ostyHp = osty is { IsAlive: true } ? osty.CurrentHp : 0;
 
@@ -198,6 +211,108 @@ internal static class IntentPreview
 		}
 
 		ApplyAll();
+	}
+
+	/// <summary>
+	/// 回合结束时、敌人动手之前还会自动加到身上的格挡。
+	/// 目前覆盖两种：
+	///  1) 覆甲（PlatingPower）：回合结束时按层数获得格挡；
+	///  2) 手里的「飘荡」牌：它们带虚无，回合结束会自动消耗，每张给 4 点格挡。
+	/// </summary>
+	private static int ProjectedEndOfTurnBlock(Creature player)
+	{
+		var me = player.Player;
+		if (me == null)
+		{
+			return 0;
+		}
+
+		int projected = 0;
+
+		PlatingPower plating = player.GetPower<PlatingPower>();
+		if (plating != null && plating.Amount > 0)
+		{
+			projected += plating.Amount;
+		}
+
+		CardPile hand = PileType.Hand.GetPile(me);
+		if (hand != null)
+		{
+			foreach (CardModel card in hand.Cards)
+			{
+				if (card.Enchantment is DriftEnchantment && card.Keywords.Contains(CardKeyword.Ethereal))
+				{
+					projected += DriftBlock;
+				}
+			}
+		}
+
+		return projected;
+	}
+
+	/// <summary>
+	/// 回合结束时、敌人动手之前先打到玩家身上、并且会吃掉格挡的伤害。
+	/// 覆盖两类：
+	///  1) 手牌里「回合结束时造成伤害」的状态牌（凋萎/灼伤/腐朽/感染/剧毒等），
+	///     只要它的伤害不是「无法格挡」就计入（债务/疑虑/羞愧不吃血，运气/召唤/悔恨是无法格挡，都不会被算进来）；
+	///  2) 挂在玩家身上、按自身层数打玩家且可被格挡的负面能力（收缩/崩解/魔法炸弹/无厌沙虫的支配）。
+	/// </summary>
+	private static int ProjectedEndOfTurnSelfDamage(Creature player)
+	{
+		var me = player.Player;
+		if (me == null)
+		{
+			return 0;
+		}
+
+		int damage = 0;
+
+		CardPile hand = PileType.Hand.GetPile(me);
+		if (hand != null)
+		{
+			foreach (CardModel card in hand.Cards)
+			{
+				if (!card.HasTurnEndInHandEffect)
+				{
+					continue;
+				}
+
+				if (!card.DynamicVars.TryGetValue("Damage", out DynamicVar dyn) || dyn is not DamageVar damageVar)
+				{
+					continue;
+				}
+
+				if ((damageVar.Props & ValueProp.Unblockable) != 0)
+				{
+					continue;
+				}
+
+				damage += (int)Math.Ceiling(damageVar.BaseValue);
+			}
+		}
+
+		if (player.GetPower<ConstrictPower>() is { } constrict)
+		{
+			damage += constrict.Amount;
+		}
+
+		if (player.GetPower<DisintegrationPower>() is { } disintegration)
+		{
+			damage += disintegration.Amount;
+		}
+
+		if (player.GetPower<MagicBombPower>() is { } magicBomb)
+		{
+			damage += magicBomb.Amount;
+		}
+
+		if (player.GetPower<InsatiableDominionPower>() is { } dominion
+			&& dominion.DynamicVars.TryGetValue("Damage", out DynamicVar dominionDamage))
+		{
+			damage += (int)Math.Ceiling(dominionDamage.BaseValue);
+		}
+
+		return damage;
 	}
 
 	/// <summary>把这一轮的模拟结果写到所有还活着的意图节点上。</summary>

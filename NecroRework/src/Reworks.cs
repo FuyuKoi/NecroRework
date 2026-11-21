@@ -1,4 +1,6 @@
 using MegaCrit.Sts2.Core.CardSelection;
+using MegaCrit.Sts2.Core.Combat;
+using MegaCrit.Sts2.Core.Combat.History.Entries;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
@@ -82,6 +84,17 @@ internal static class Reworks
         // 紧追不放：奥斯提伤害 5（升级 6）→ 8（升级 11）；
         //            额外召唤 → 改为「本回合内每攻击该敌人 2 次给 1（升级 2）层易伤」
         [typeof(SicEm)] = _ => [new OstyDamageVar(8m, ValueProp.Move), new PowerVar<RelentlessPower>(1m)],
+
+        // 亡魂牵引：伤害 5（升级 7）→ 4（升级 6），其余数值（按虚无牌张数决定次数）保持原版公式
+        [typeof(PullFromBelow)] = _ =>
+        [
+            new DamageVar(4m, ValueProp.Move),
+            new CalculationBaseVar(0m),
+            new CalculationExtraVar(1m),
+            new CalculatedHitCountVar("CalculatedHits").WithMultiplier((CardModel card, Creature _) =>
+                CombatManager.Instance.History.Entries.OfType<CardPlayFinishedEntry>()
+                    .Count(e => e.CardPlay.Player == card.Owner && e.WasEthereal))
+        ],
 
         // 忧郁：格挡 13（升级 17）→ 12（升级 16）；降费条件换成「你或奥斯提获得负面效果」
         [typeof(Melancholy)] = _ => [new BlockVar(12m, ValueProp.Move), new EnergyVar(1)],
@@ -294,22 +307,47 @@ internal static class Reworks
             await PowerCmd.Apply<SpilloverPower>(ctx, card.Owner.Creature, turns, card.Owner.Creature, card);
         },
 
-        // 紧追不放：奥斯提攻击目标，然后在目标身上挂「紧追不放」（本回合内每被打 2 次给易伤）。
+        // 紧追不放：奥斯提攻击目标，然后在目标身上挂「紧追不放」（本回合内每推进 2 次给易伤）。
         [typeof(SicEm)] = async (card, ctx, play) =>
         {
             if (play.Target is not { } target) return;
 
-            if (!Osty.CheckMissingWithAnim(card.Owner) && card.Owner.Osty is { } osty)
+            bool hadCounter = target.GetPower<SicEmCounterPower>() != null;
+
+            // 这张牌自己的那一下攻击不算推进，否则一次打出会掉两格。
+            RelentlessPower.BeginSuppress();
+            try
             {
-                await DamageCmd.Attack(card.DynamicVars.OstyDamage.BaseValue)
-                    .FromOsty(osty, card, play)
-                    .Targeting(target)
-                    .WithHitFx("vfx/vfx_attack_blunt", null, "blunt_attack.mp3")
-                    .Execute(ctx);
+                if (!Osty.CheckMissingWithAnim(card.Owner) && card.Owner.Osty is { } osty)
+                {
+                    await DamageCmd.Attack(card.DynamicVars.OstyDamage.BaseValue)
+                        .FromOsty(osty, card, play)
+                        .Targeting(target)
+                        .WithHitFx("vfx/vfx_attack_blunt", null, "blunt_attack.mp3")
+                        .Execute(ctx);
+                }
+            }
+            finally
+            {
+                RelentlessPower.EndSuppress();
             }
 
             await PowerCmd.Apply<RelentlessPower>(ctx, target,
                 card.DynamicVars["RelentlessPower"].BaseValue, card.Owner.Creature, card);
+
+            if (!hadCounter)
+            {
+                // 第一次上这个状态：计数器从满格开始，这次打出本身不推进。
+                await PowerCmd.Apply<SicEmCounterPower>(ctx, target, RelentlessPower.HitsPerTrigger,
+                    card.Owner.Creature, card);
+                return;
+            }
+
+            // 已经挂着：层数叠加之外，这张牌本身也算推进一次（2 → 1）。
+            if (target.GetPower<RelentlessPower>() is { } relentless)
+            {
+                await relentless.Advance(ctx);
+            }
         },
 
         // 领会：先获得 6 层灾厄（会触发死亡之门 / 厄运之衣），再抽牌。

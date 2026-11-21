@@ -12,27 +12,61 @@ namespace NecroRework.Powers;
 
 /// <summary>
 /// 紧追不放：挂在敌人身上的 debuff。
-/// 本回合内，奥斯提每攻击这名敌人 2 次，就给予其 Amount 层易伤；敌方回合结束时自动移除。
+/// 本回合内奥斯提每「推进」2 次，就给予其 Amount 层易伤；敌方回合结束时自动移除。
+/// 推进来自两处：奥斯提攻击这名敌人、以及再次打出紧追不放这张牌本身。
+/// 同时维护 <see cref="SicEmCounterPower"/>（还差几下），让玩家看到倒计时。
 /// </summary>
 public sealed class RelentlessPower : PowerModel
 {
+    /// <summary>触发一次易伤需要的推进次数（也就是计数器的初始值）。</summary>
+    public const int HitsPerTrigger = 2;
+
+    [ThreadStatic] private static int _suppress;
+
+    /// <summary>紧追不放这张牌自己打出的那一下攻击不算推进，避免一次打出掉两格。</summary>
+    public static void BeginSuppress() => _suppress++;
+
+    public static void EndSuppress()
+    {
+        if (_suppress > 0) _suppress--;
+    }
+
+    private static bool Suppressed => _suppress > 0;
+
     public override PowerType Type => PowerType.Debuff;
 
     public override PowerStackType StackType => PowerStackType.Counter;
 
-    private int _hits;
-
     public override async Task AfterDamageGiven(PlayerChoiceContext choiceContext, Creature dealer, DamageResult result,
         ValueProp props, Creature target, CardModel cardSource)
     {
+        if (Suppressed) return;
         if (target != Owner) return;
         if (dealer?.Monster is not Osty osty) return;
 
         var petOwner = osty.Creature.PetOwner;
         if (petOwner == null || petOwner.Creature != Applier) return;
 
-        _hits++;
-        if (_hits % 2 != 0) return;
+        await Advance(choiceContext);
+    }
+
+    /// <summary>
+    /// 推进一次倒计时：>0 就减一并刷新显示；
+    /// 减到 0 时按当前层数给易伤，并把倒计时重置回初始值。
+    /// </summary>
+    public async Task Advance(PlayerChoiceContext choiceContext)
+    {
+        var counter = Owner.GetPower<SicEmCounterPower>();
+
+        int remaining = (counter?.Amount ?? HitsPerTrigger) - 1;
+
+        if (remaining > 0)
+        {
+            counter?.SetAmount(remaining);
+            return;
+        }
+
+        counter?.SetAmount(HitsPerTrigger);
 
         await PowerCmd.Apply<VulnerablePower>(choiceContext, Owner, Amount, Applier, null);
     }
@@ -42,6 +76,12 @@ public sealed class RelentlessPower : PowerModel
     {
         if (participants.Contains(Owner))
         {
+            // 计数器和本体同寿：本体走了，倒计时也一起清掉。
+            if (Owner.GetPower<SicEmCounterPower>() is { } counter)
+            {
+                await PowerCmd.Remove(counter);
+            }
+
             await PowerCmd.Remove(this);
         }
     }

@@ -2,6 +2,7 @@ using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Powers;
+using MegaCrit.Sts2.Core.Models.Relics;
 using NecroRework.Powers;
 
 namespace NecroRework;
@@ -74,7 +75,12 @@ internal static class PowerIcons
                     __result = ModelDb.Power<HauntPower>().PackedIconPath;
                     break;
                 case RelentlessPower:
-                    __result = ModelDb.Power<VulnerablePower>().PackedIconPath;
+                    // 用原版「紧追不放」能力（SicEmPower）的图标
+                    __result = ModelDb.Power<SicEmPower>().PackedIconPath;
+                    break;
+                case SicEmCounterPower:
+                    // 用遗物「异蛇之眼？？？」的问号当计数器图标
+                    __result = ModelDb.Relic<FakeSneckoEye>().PackedIconPath;
                     break;
                 case CountdownReworkPower:
                     __result = ModelDb.Power<CountdownPower>().PackedIconPath;

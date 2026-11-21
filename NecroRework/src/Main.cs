@@ -71,6 +71,17 @@ public static class Main
         // 冥灯：罕见品质技能牌（X 费）
         ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(GhostLantern));
 
-        Log.Info($"[{ModId}] 已注册新卡牌 DriftTestCard / LookBack / Touch / Retrieve / Exchange / CraftSpirit / Gather / Continuation / GhostLantern -> NecrobinderCardPool");
+        // 拖拽：罕见品质攻击牌
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(Drag));
+
+        // 不详重拳：罕见品质攻击牌
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(OminousPunch));
+
+        // 掩护 / 升华 / 生与死：罕见品质攻击牌
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(Cover));
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(Sublimation));
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(LifeAndDeath));
+
+        Log.Info($"[{ModId}] 已注册新卡牌 DriftTestCard / LookBack / Touch / Retrieve / Exchange / CraftSpirit / Gather / Continuation / GhostLantern / Drag / OminousPunch / Cover / Sublimation / LifeAndDeath -> NecrobinderCardPool");
     }
 }

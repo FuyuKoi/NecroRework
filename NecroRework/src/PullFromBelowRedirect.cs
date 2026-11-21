@@ -104,6 +104,40 @@ internal static class PullFromBelowRedirect
         }
     }
 
+    /// <summary>
+    /// 自动打出结束后，保证技能/攻击牌落在弃牌堆里。
+    /// 能力牌不在此列：它和手动打出时一样只生效、不留在任何牌堆里。
+    /// </summary>
+    private static async Task EnsureInDiscard(CardModel card)
+    {
+        try
+        {
+            if (card.Type == CardType.Power)
+            {
+                Main.Log.Info($"[{Main.ModId}] 亡魂牵引：{card.Id}（能力牌）已自动打出，按原版离场");
+                return;
+            }
+
+            var pile = card.Pile?.Type;
+            Main.Log.Info($"[{Main.ModId}] 亡魂牵引：{card.Id} 自动打出结束，牌堆 = {pile?.ToString() ?? "无"}");
+
+            if (pile == PileType.Discard)
+            {
+                return;
+            }
+
+            var result = await CardPileCmd.Add(card, PileType.Discard, CardPilePosition.Bottom);
+            if (!result.success)
+            {
+                Main.Log.Warn($"[{Main.ModId}] 亡魂牵引：{card.Id} 放回弃牌堆失败（牌已被移出战斗？）");
+            }
+        }
+        catch (Exception e)
+        {
+            Main.Log.Error($"[{Main.ModId}] 亡魂牵引：{card.Id} 放回弃牌堆异常: {e}");
+        }
+    }
+
     private static async Task<CardPileAddResult?> Redirect(CardModel card, PullFromBelowPower power)
     {
         _busy = true;
@@ -114,6 +148,11 @@ internal static class PullFromBelowRedirect
 
             power.FlashNow();
             await CardCmd.AutoPlay(new ThrowingPlayerChoiceContext(), card, null);
+
+            // 能力牌被打出后，引擎默认把它从战斗里摘掉（结果堆是 None），
+            // 所以这里补一次：只要它还没进弃牌堆，就手动放进去。
+            await EnsureInDiscard(card);
+
             return null;
         }
         catch (Exception e)

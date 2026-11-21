@@ -10,11 +10,15 @@
   "ENERGY_CARRY_POWER.title": "延续",
   "ENERGY_CARRY_POWER.description": "回合结束时剩余的[gold]费用[/gold]会保留到下一回合，并按剩余费用获得{Amount}倍层数的[gold]灾厄[/gold]。",
   "PULL_FROM_BELOW_POWER.title": "亡魂牵引",
-  "PULL_FROM_BELOW_POWER.description": "你下一次被动消耗[gold]虚无[/gold]牌时，改为自动打出该牌，之后照常进入弃牌堆。\n（还剩{Amount}次）",
+  "PULL_FROM_BELOW_POWER.description": "你下一次被动消耗[gold]虚无[/gold]牌时，改为自动打出该牌。\n（还剩{Amount}次）",
   "RELENTLESS_POWER.title": "紧追不放",
   "RELENTLESS_POWER.description": "本回合内，[gold]奥斯提[/gold]每攻击这名敌人2次，就给予其{Amount}层[gold]易伤[/gold]。",
   "COUNTDOWN_REWORK_POWER.title": "倒数计时",
   "COUNTDOWN_REWORK_POWER.description": "在你的回合开始时，给予随机敌人{Amount}层[gold]灾厄[/gold]，然后你失去等量[gold]灾厄[/gold]。",
   "GHOST_LANTERN_POWER.title": "冥灯",
-  "GHOST_LANTERN_POWER.description": "你每回合抽到的前两张[gold]虚无[/gold]牌会各给予你1点[gold]费用[/gold]。\n（还剩{Amount}回合）"
+  "GHOST_LANTERN_POWER.description": "你每回合抽到的前两张[gold]虚无[/gold]牌会各给予你1点[gold]费用[/gold]。\n（还剩{Amount}回合）",
+  "SIC_EM_COUNTER_POWER.title": "紧追不放的计数",
+  "SIC_EM_COUNTER_POWER.description": "[gold]奥斯提[/gold]再攻击这名敌人{Amount}次后，就会施加[gold]易伤[/gold]。",
+  "LIFE_AND_DEATH_POWER.title": "生与死",
+  "LIFE_AND_DEATH_POWER.description": "接下来你获得的{Amount}层[gold]灾厄[/gold]将由[gold]奥斯提[/gold]承担，他在承受这些[gold]灾厄[/gold]时会受到等量伤害。\n（还剩{Amount}层）"
 }

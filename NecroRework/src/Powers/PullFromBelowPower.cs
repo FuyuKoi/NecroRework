@@ -22,6 +22,9 @@ public sealed class PullFromBelowPower : PowerModel
         if (!isAutoPlay) return cardLocation;
         if (!ReferenceEquals(card, PullFromBelowRedirect.CurrentCard)) return cardLocation;
 
+        // 能力牌跟手动打出时一样：只生效、不进弃牌堆（原版结果堆是「无」，打出后直接移出战斗）。
+        if (card.Type == CardType.Power) return cardLocation;
+
         return new CardLocation(card.Owner, PileType.Discard, CardPilePosition.Bottom);
     }
 

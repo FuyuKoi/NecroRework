@@ -102,6 +102,12 @@ internal static class PatchInstaller
         // 钙化：奥斯提每次攻击后给玩家格挡
         Safe("钙化格挡", () => CalcifyGuard.Install(harmony));
 
+        // 升华：抽牌加费 + 耗能变化折算伤害
+        Safe("升华记账", () => SublimationTracker.Install(harmony));
+
+        // 调试卡「飘荡实验」不进任何获取渠道
+        Safe("调试卡过滤", () => TestCardFilter.Install(harmony));
+
         // 给我们自己新加的卡兜住 OnPlay 里的异步异常（异常会让出牌流程卡死）
         Safe("出牌异常保护", () => InstallTaskGuards(harmony));
 
