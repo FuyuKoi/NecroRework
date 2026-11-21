@@ -62,6 +62,15 @@ internal static class PullFromBelowRedirect
             }
 
             Main.Log.Info($"[{Main.ModId}] 亡魂牵引已挂载：被动消耗虚无牌时改为自动打出");
+
+            // 诊断用：如果有人在没走 CardCmd.Exhaust 的情况下直接把牌塞进消耗堆，
+            // 上面那个前缀就不会执行。这里只记日志、不改变任何行为。
+            var pileAdd = AccessTools.Method(typeof(CardPileCmd), "Add",
+                new[] { typeof(CardModel), typeof(PileType), typeof(CardPilePosition), typeof(AbstractModel), typeof(bool) });
+            if (pileAdd != null)
+            {
+                harmony.Patch(pileAdd, prefix: new HarmonyMethod(typeof(PullFromBelowRedirect), nameof(PileAddPrefix)));
+            }
         }
         catch (Exception e)
         {
@@ -72,6 +81,29 @@ internal static class PullFromBelowRedirect
     private static void OnPlayWrapperPrefix(CardModel __instance) => PlayingCards.Add(__instance);
 
     private static void OnPlayWrapperPostfix(CardModel __instance) => PlayingCards.Remove(__instance);
+
+    private static int _traceCount;
+
+    private static int _pileTrace;
+
+    /// <summary>诊断：记录「绕过 CardCmd.Exhaust 直接进消耗堆」的情况。</summary>
+    private static bool PileAddPrefix(CardModel card, PileType newPileType)
+    {
+        try
+        {
+            if (newPileType != PileType.Exhaust || _pileTrace >= 30) return true;
+
+            _pileTrace++;
+            var power = card.Owner?.Creature?.GetPower<PullFromBelowPower>();
+            Main.Log.Info($"[{Main.ModId}] 进消耗堆#{_pileTrace} {card.Id} 虚无={card.Keywords.Contains(CardKeyword.Ethereal)} 亡魂牵引={power?.Amount.ToString() ?? "无"} 经由=CardPileCmd.Add");
+        }
+        catch
+        {
+            // 诊断代码本身不能影响游戏
+        }
+
+        return true;
+    }
 
     private static bool ExhaustPrefix(CardModel card, bool causedByEthereal, ref Task<CardPileAddResult?> __result)
     {
@@ -86,10 +118,16 @@ internal static class PullFromBelowRedirect
             var power = creature.GetPower<PullFromBelowPower>();
             bool ethereal = card.Keywords.Contains(CardKeyword.Ethereal);
 
-            // 身上有亡魂牵引时，把每次「消耗决议」都记下来，方便排查到底是被谁吃掉的。
-            if (power != null && power.Amount > 0)
+            // 前 60 次消耗决议全部记录（不只 buff 在场时），这样能确认这个补丁到底有没有被执行。
+            if (_traceCount < 60)
             {
-                Main.Log.Info($"[{Main.ModId}] 亡魂牵引：消耗决议 {card.Id} 牌堆={card.Pile?.Type.ToString() ?? "无"} 虚无={ethereal} 回合结束自烧={causedByEthereal} 正在打出={PlayingCards.Contains(card)} 剩余层数={power.Amount}");
+                _traceCount++;
+                Main.Log.Info($"[{Main.ModId}] 消耗决议#{_traceCount} {card.Id} 牌堆={card.Pile?.Type.ToString() ?? "无"} 虚无={ethereal} 回合结束自烧={causedByEthereal} 正在打出={PlayingCards.Contains(card)} 亡魂牵引={power?.Amount.ToString() ?? "无"}");
+            }
+
+            if (power != null && power.Amount > 0 && ethereal)
+            {
+                Main.Log.Info($"[{Main.ModId}] 亡魂牵引：消耗决议 {card.Id} 牌堆={card.Pile?.Type.ToString() ?? "无"} 回合结束自烧={causedByEthereal} 正在打出={PlayingCards.Contains(card)} 剩余层数={power.Amount}");
             }
 
             if (!ethereal) return true;

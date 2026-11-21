@@ -200,6 +200,7 @@ internal static class Reworks
         [typeof(PullFromBelow)] = async (card, ctx, play) =>
         {
             await PowerCmd.Apply<PullFromBelowPower>(ctx, card.Owner.Creature, 1m, card.Owner.Creature, card);
+            Main.Log.Info($"[{Main.ModId}] 亡魂牵引：已施加，当前层数 = {card.Owner.Creature.GetPower<PullFromBelowPower>()?.Amount.ToString() ?? "无"}");
 
             if (play.Target is not { } target) return;
             int hits = (int)((CalculatedVar)card.DynamicVars["CalculatedHits"]).Calculate(target);

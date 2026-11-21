@@ -93,6 +93,9 @@ internal static class PatchInstaller
         // 亡魂牵引：消耗虚无牌时改为自动打出
         Safe("亡魂牵引", () => PullFromBelowRedirect.Install(harmony));
 
+        // 亡魂牵引：手牌里会被拦下的虚无牌亮起来
+        Safe("亡魂牵引手牌提示", () => PullFromBelowGlow.Install(harmony));
+
         // 忧郁：你或奥斯提获得负面效果时，本场战斗永久 -1 费
         Safe("忧郁降费", () => MelancholyCost.Install(harmony));
 
@@ -112,6 +115,66 @@ internal static class PatchInstaller
         Safe("出牌异常保护", () => InstallTaskGuards(harmony));
 
         Main.Log.Info($"[{Main.ModId}] 已挂载 {Reworks.Vars.Count} 个数值改写 / {Reworks.Play.Count} 个效果改写 / {Reworks.Upgrade.Count} 个升级补充 / {Reworks.UpgradeReplace.Count} 个升级替换 / {Reworks.Costs.Count} 个费用改写 / {Reworks.Keywords.Count} 个关键词改写 / {Reworks.Tips.Count} 个提示改写");
+
+        Safe("安装冲突检查", () => ReportConflicts());
+    }
+
+    /// <summary>
+    /// 检查我们依赖的几个关键方法上还有没有别的 mod 的 Harmony 补丁。
+    /// Harmony 的 prefix 一旦有任何一个返回 false，排在它后面的 prefix 就都不会执行，
+    /// 所以「别的 mod 也补了同一个方法」是这类功能莫名失效的常见原因。
+    /// </summary>
+    private static void ReportConflicts()
+    {
+        var targets = new (string Name, Type Type, string Member)[]
+        {
+            ("CardCmd.Exhaust", typeof(MegaCrit.Sts2.Core.Commands.CardCmd), "Exhaust"),
+            ("CardCmd.AutoPlay", typeof(MegaCrit.Sts2.Core.Commands.CardCmd), "AutoPlay"),
+            ("CardCmd.Enchant", typeof(MegaCrit.Sts2.Core.Commands.CardCmd), "Enchant"),
+            ("CardModel.OnPlayWrapper", typeof(CardModel), "OnPlayWrapper"),
+            ("CardModel.get_Portrait", typeof(CardModel), "get_Portrait"),
+            ("CardPoolModel.GetUnlockedCards", typeof(CardPoolModel), "GetUnlockedCards"),
+            ("PowerModel.get_PackedIconPath", typeof(PowerModel), "get_PackedIconPath"),
+            ("PowerModel.get_Icon", typeof(PowerModel), "get_Icon"),
+            ("CreatureCmd.Damage", typeof(MegaCrit.Sts2.Core.Commands.CreatureCmd), "Damage"),
+            ("Hook.AfterSideTurnEnd", typeof(MegaCrit.Sts2.Core.Hooks.Hook), "AfterSideTurnEnd"),
+        };
+
+        foreach (var (name, type, member) in targets)
+        {
+            Safe($"冲突检查 {name}", () =>
+            {
+                // 同一个名字可能有好几个重载（Enchant 就是），这里逐个查，避免 AmbiguousMatchException。
+                var methods = type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)
+                    .Where(m => m.Name == member)
+                    .ToList();
+
+                if (methods.Count == 0)
+                {
+                    Main.Log.Warn($"[{Main.ModId}] 冲突检查：找不到 {name}");
+                    return;
+                }
+
+                var reported = new HashSet<string>();
+
+                foreach (var method in methods)
+                {
+                    var info = Harmony.GetPatchInfo(method);
+                    if (info == null) continue;
+
+                    var others = info.Owners
+                        .Where(o => !o.StartsWith("necrorework", StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+
+                    if (others.Count == 0) continue;
+
+                    var key = string.Join(",", others);
+                    if (!reported.Add(key)) continue;
+
+                    Main.Log.Warn($"[{Main.ModId}] 冲突检查：{name} 上还挂着别的补丁 → {key}（prefix 数 {info.Prefixes.Count}）");
+                }
+            });
+        }
     }
 
     private static void Safe(string what, Action action)

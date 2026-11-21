@@ -31,6 +31,8 @@ internal static class CardArt
 
     private static Texture2D _placeholder;
 
+    private static int _traceCount;
+
     public static void Install(Harmony harmony)
     {
         try
@@ -57,12 +59,21 @@ internal static class CardArt
         try
         {
             Type type = __instance.GetType();
+            bool known = Files.ContainsKey(type) || UsesPlaceholder(__instance);
+
+            if (known && _traceCount < 20)
+            {
+                _traceCount++;
+                Main.Log.Info($"[{Main.ModId}] 卡图#{_traceCount} 请求 {type.Name}（有映射={Files.ContainsKey(type)}）");
+            }
+
             if (Files.TryGetValue(type, out string fileName))
             {
                 if (!Cache.TryGetValue(type, out Texture2D texture))
                 {
                     texture = Load(fileName);
                     Cache[type] = texture;
+                    Main.Log.Info($"[{Main.ModId}] 卡图 {type.Name} <- {fileName}：{(texture == null ? "读取失败，回退原版" : "已载入")}");
                 }
 
                 if (texture != null)
@@ -70,6 +81,10 @@ internal static class CardArt
                     __result = texture;
                     return false;
                 }
+            }
+            else if (type.Assembly == typeof(CardArt).Assembly)
+            {
+                Main.Log.Warn($"[{Main.ModId}] 卡图 {type.Name} 没有映射，走占位/原版逻辑");
             }
 
             if (UsesPlaceholder(__instance))
