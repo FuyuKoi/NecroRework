@@ -68,6 +68,12 @@ internal static class PullFromBelowGlow
             return;
         }
 
+        // 玩家点了结束回合之后不再重新判定，保持上一帧的样子
+        if (FreezeGate.IsFrozen())
+        {
+            return;
+        }
+
         var highlight = node.CardHighlight;
         if (highlight == null)
         {

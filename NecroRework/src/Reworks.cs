@@ -50,10 +50,10 @@ internal static class Reworks
         [typeof(Reave)] = _ => [new DamageVar(11m, ValueProp.Move), new CardsVar(1)],
 
         // 玷污：伤害 13（升级 17）→ 12（升级 16）；额外转移至多 6（升级 8）层灾厄
-        [typeof(Defile)] = _ => [new DamageVar(12m, ValueProp.Move), new PowerVar<DoomPower>(6m)],
+        [typeof(Defile)] = _ => [new DamageVar(13m, ValueProp.Move), new PowerVar<DoomPower>(8m)],
 
         // 荒疫打击：伤害 8（升级 10）→ 10（升级 12）；开局先获得 5 点灾厄（固定值）
-        [typeof(BlightStrike)] = _ => [new DamageVar(10m, ValueProp.Move)],
+        [typeof(BlightStrike)] = _ => [new DamageVar(12m, ValueProp.Move)],
 
         // 响指：奥斯提伤害 7（升级 10）不变；保留张数 1（升级 2）
         [typeof(Snap)] = _ => [new OstyDamageVar(7m, ValueProp.Move), new CardsVar(1)],
@@ -63,11 +63,11 @@ internal static class Reworks
 
         // 鞭打：给予 13（升级 16）层灾厄、抽 1（升级 2）张
         //       → 给予 14（升级 17）层灾厄、抽 2 张（张数不随升级涨，见 UpgradeReplace）
-        [typeof(Scourge)] = _ => [new PowerVar<DoomPower>(14m), new CardsVar(2)],
+        [typeof(Scourge)] = _ => [new PowerVar<DoomPower>(15m), new CardsVar(2)],
 
         // 负能量脉冲：格挡 5（升级 6）、全体 7（升级 11）层灾厄
         //             → 格挡 7（升级 8）、全体 9（升级 13）层灾厄
-        [typeof(NegativePulse)] = _ => [new BlockVar(7m, ValueProp.Move), new PowerVar<DoomPower>(9m)],
+        [typeof(NegativePulse)] = _ => [new BlockVar(9m, ValueProp.Move), new PowerVar<DoomPower>(12m)],
 
         // 唤起：下回合召唤 2（升级 3）→ 召唤 4（升级 6），费用部分不变
         [typeof(Invoke)] = _ => [new SummonVar(4m), new EnergyVar(2)],
@@ -114,7 +114,7 @@ internal static class Reworks
         [typeof(Putrefy)] = _ => [new DynamicVar("Power", 1m)],
 
         // 倒数计时：随机敌人灾厄 6（升级 9）→ 4（升级 7）；行为换成自制能力
-        [typeof(Countdown)] = _ => [new PowerVar<CountdownReworkPower>(4m)],
+        [typeof(Countdown)] = _ => [new PowerVar<CountdownReworkPower>(6m)],
 
         // 血肉戏法：9（升级 13）→ 5（升级 8），再加一个「虚无」
         [typeof(SleightOfFlesh)] = _ => [new PowerVar<SleightOfFleshPower>(5m)],
@@ -128,6 +128,12 @@ internal static class Reworks
 
         // 洁净：召唤 3（升级 5）→ 改成「移除 6（升级 9）层灾厄」，数值用灾厄变量显示
         [typeof(Cleanse)] = _ => [new PowerVar<DoomPower>(6m)],
+
+        // 厄运之衣：每次施加灾厄时的格挡 3（升级 4）→ 4（升级 5），升级仍 +1
+        [typeof(Shroud)] = _ => [new BlockVar(4m, ValueProp.Unpowered)],
+
+        // 违逆：格挡 6（升级 9）→ 7（升级 10）
+        [typeof(Defy)] = _ => [new BlockVar(7m, ValueProp.Move), new PowerVar<WeakPower>(1m)],
     };
 
     /// <summary>
@@ -227,7 +233,7 @@ internal static class Reworks
             if (play.Target is not { } target) return;
 
             await CreatureCmd.TriggerAnim(card.Owner.Creature, "Cast", card.Owner.Character.CastAnimDelay);
-            await DoomUtil.TransferToEnemy(ctx, card, target, 7m);
+            await DoomUtil.TransferToEnemy(ctx, card, target, 9m);
             await PowerCmd.Apply<DoomPower>(ctx, target, card.DynamicVars.Doom.BaseValue, card.Owner.Creature, card);
             await CardPileCmd.Draw(ctx, card.DynamicVars.Cards.BaseValue, card.Owner);
         },
@@ -236,7 +242,7 @@ internal static class Reworks
         [typeof(NegativePulse)] = async (card, ctx, play) =>
         {
             await CreatureCmd.TriggerAnim(card.Owner.Creature, "Cast", card.Owner.Character.CastAnimDelay);
-            await DoomUtil.ApplyToSelf(ctx, card, 6m);
+            await DoomUtil.ApplyToSelf(ctx, card, 4m);
             await CreatureCmd.GainBlock(card.Owner.Creature, card.DynamicVars.Block, play);
 
             foreach (var enemy in card.CombatState.HittableEnemies)
@@ -288,7 +294,7 @@ internal static class Reworks
             if (play.Target is not { } target) return;
 
             await CreatureCmd.TriggerAnim(card.Owner.Creature, "Cast", card.Owner.Character.CastAnimDelay);
-            await DoomUtil.ApplyToSelf(ctx, card, 8m);
+            await DoomUtil.ApplyToSelf(ctx, card, 6m);
             await CreatureCmd.GainBlock(card.Owner.Creature, card.DynamicVars.Block, play);
             await PowerCmd.Apply<WeakPower>(ctx, target, card.DynamicVars.Weak.BaseValue, card.Owner.Creature, card);
         },
@@ -606,8 +612,8 @@ internal static class Reworks
     /// </summary>
     public static readonly Dictionary<Type, int> Costs = new()
     {
-        // 厄运之衣：1 费 → 2 费
-        [typeof(Shroud)] = 2,
+        // 厄运之衣：2 费 → 1 费（升级前后都是 1 费）
+        [typeof(Shroud)] = 1,
     };
 
     /// <summary>

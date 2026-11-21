@@ -5,10 +5,12 @@ using System.Runtime.CompilerServices;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.addons.mega_text;
+using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Models.Afflictions;
 using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.MonsterMoves.Intents;
 using MegaCrit.Sts2.Core.Nodes.Combat;
@@ -125,6 +127,13 @@ internal static class IntentPreview
 	/// <summary>按敌人行动顺序整体模拟一遍，然后把结果写回所有意图节点。</summary>
 	private static void Recompute(NIntent source)
 	{
+		// 玩家点了结束回合之后：不再重算，只把上一轮算好的数字贴回去，避免敌人回合里数字乱跳
+		if (FreezeGate.IsFrozen())
+		{
+			ApplyAll();
+			return;
+		}
+
 		_lastComputeMsec = Time.GetTicksMsec();
 
 		Creature owner = OwnerRef(source);
@@ -140,11 +149,20 @@ internal static class IntentPreview
 			return;
 		}
 
-		int block = player.Block + ProjectedEndOfTurnBlock(player) - ProjectedEndOfTurnSelfDamage(player);
+		// 亡魂牵引会拦下的牌（回合结束自动打出），它们既不进消耗堆、也不再触发飘荡的起防
+		List<CardModel> autoPlayed = CollectAutoPlayedCards(player);
+
+		int block = player.Block + ProjectedEndOfTurnBlock(player, autoPlayed) - ProjectedEndOfTurnSelfDamage(player);
 		if (block < 0)
 		{
 			block = 0;
 		}
+
+		// 这些牌在敌人动手之前就会被打出：先算它们的格挡/自伤/敌人触发
+		AutoPlayForecast forecast = ForecastAutoPlays(player, autoPlayed, combatState);
+		block += forecast.Block;
+		int preDamage = Math.Max(0, forecast.SelfDamage - block);
+		block = Math.Max(0, block - forecast.SelfDamage);
 		Creature osty = player.Player?.Osty;
 		int ostyHp = osty is { IsAlive: true } ? osty.CurrentHp : 0;
 
@@ -157,6 +175,13 @@ internal static class IntentPreview
 
 		bool guard = ostyHp > 0 && osty.HasPower<OstyGuardPower>();
 		var targets = combatState.Players.Select(p => p.Creature).ToList();
+
+		// 「吸引仇恨 + 多段攻击 + 厄运之衣」的连锁：
+		//   奥斯提全吸收 → 它掉血 → 「殃及」每 2 点掉血给你 1 层灾厄 → 「厄运之衣」每层灾厄给你格挡。
+		// 这几块格挡会滚进后面的每一段攻击，所以要在整段敌人回合里一直累计。
+		int shroudBlock = player.GetPower<ShroudPower>()?.Amount ?? 0;
+		bool spillover = player.HasPower<SpilloverPower>();
+		int spillBuffer = 0;
 
 		Suffixes.Clear();
 
@@ -176,6 +201,11 @@ internal static class IntentPreview
 				}
 
 				int single = attack.GetSingleDamage(targets, enemy);
+
+				// 激怒：自动打出的技能牌会让这名敌人获得力量，之后的每一下都更疼
+				int enrage = (enemy.GetPower<EnragePower>()?.Amount ?? 0) * forecast.SkillCount;
+				single += enrage;
+
 				if (single <= 0)
 				{
 					continue;
@@ -199,11 +229,36 @@ internal static class IntentPreview
 						share = Math.Min(share, ostyHp);
 						ostyHp -= share;
 						taken += unblocked - share;
+
+						// 奥斯提掉血 → 「殃及」给玩家灾厄 → 「厄运之衣」转成格挡（每 2 点掉血 1 层灾厄）
+						if (share > 0 && spillover && shroudBlock > 0)
+						{
+							spillBuffer += share;
+							int doomGained = spillBuffer / 2;
+							if (doomGained > 0)
+							{
+								spillBuffer -= doomGained * 2;
+								block += doomGained * shroudBlock;
+							}
+						}
+
+						// 奥斯提在这一段被打死：「吸引仇恨」随之消失，后面的段数不再由它承担
+						if (ostyHp <= 0)
+						{
+							guard = false;
+						}
 					}
 					else
 					{
 						taken += unblocked;
 					}
+				}
+
+				if (preDamage > 0 && taken >= 0)
+				{
+					// 格挡不够吃掉的那部分自伤（死亡律动/流电），算进第一段攻击的数字里
+					taken += preDamage;
+					preDamage = 0;
 				}
 
 				Suffixes[intent] = taken > 0 ? ColorOpen + "（" + taken + "）" + ColorClose : string.Empty;
@@ -219,7 +274,7 @@ internal static class IntentPreview
 	///  1) 覆甲（PlatingPower）：回合结束时按层数获得格挡；
 	///  2) 手里的「飘荡」牌：它们带虚无，回合结束会自动消耗，每张给 4 点格挡。
 	/// </summary>
-	private static int ProjectedEndOfTurnBlock(Creature player)
+	private static int ProjectedEndOfTurnBlock(Creature player, List<CardModel> autoPlayed)
 	{
 		var me = player.Player;
 		if (me == null)
@@ -240,7 +295,9 @@ internal static class IntentPreview
 		{
 			foreach (CardModel card in hand.Cards)
 			{
-				if (card.Enchantment is DriftEnchantment && card.Keywords.Contains(CardKeyword.Ethereal))
+				if (card.Enchantment is DriftEnchantment
+					&& card.Keywords.Contains(CardKeyword.Ethereal)
+					&& !autoPlayed.Contains(card))
 				{
 					projected += DriftBlock;
 				}
@@ -248,6 +305,111 @@ internal static class IntentPreview
 		}
 
 		return projected;
+	}
+
+	/// <summary>亡魂牵引会拦下的牌：手牌从左到右前 N 张带「虚无」的牌（N = 层数）。</summary>
+	private static List<CardModel> CollectAutoPlayedCards(Creature player)
+	{
+		var result = new List<CardModel>();
+		var me = player.Player;
+		if (me == null)
+		{
+			return result;
+		}
+
+		int stacks = player.GetPower<PullFromBelowPower>()?.Amount ?? 0;
+		if (stacks <= 0)
+		{
+			return result;
+		}
+
+		CardPile hand = PileType.Hand.GetPile(me);
+		if (hand == null)
+		{
+			return result;
+		}
+
+		foreach (CardModel card in hand.Cards)
+		{
+			if (result.Count >= stacks)
+			{
+				break;
+			}
+
+			if (card.Keywords.Contains(CardKeyword.Ethereal))
+			{
+				result.Add(card);
+			}
+		}
+
+		return result;
+	}
+
+	private sealed class AutoPlayForecast
+	{
+		public int Block;
+		public int SelfDamage;
+		public int SkillCount;
+	}
+
+	/// <summary>
+	/// 预演「亡魂牵引自动打出的那几张牌」在敌人动手前会发生什么：
+	///  1) 牌面自带的格挡（脆弱会砍 25%，向下取整）；
+	///  2) 每打出一张就吃一次死亡律动的伤害；
+	///  3) 能力牌身上有「流电」侵蚀时，打出会挨一份流电伤害；
+	///  4) 技能牌会喂敌人的「激怒」（每张 +Amount 力量，影响该敌人之后每一段攻击）。
+	/// </summary>
+	private static AutoPlayForecast ForecastAutoPlays(Creature player, List<CardModel> cards, ICombatState combatState)
+	{
+		var forecast = new AutoPlayForecast();
+		if (cards.Count == 0)
+		{
+			return forecast;
+		}
+
+		bool frail = player.HasPower<FrailPower>();
+		int deathRhythm = player.GetPower<DeathRhythmPower>()?.Amount ?? 0;
+
+		int galvanic = 0;
+		foreach (Creature enemy in combatState.Enemies)
+		{
+			GalvanicPower? power = enemy.GetPower<GalvanicPower>();
+			if (power != null && power.Amount > galvanic)
+			{
+				galvanic = power.Amount;
+			}
+		}
+
+		foreach (CardModel card in cards)
+		{
+			if (card.Type == CardType.Skill)
+			{
+				forecast.SkillCount++;
+			}
+
+			if (card.DynamicVars.TryGetValue("Block", out DynamicVar? blockVar))
+			{
+				decimal value = blockVar.BaseValue;
+				if (frail)
+				{
+					value *= 0.75m;
+				}
+
+				forecast.Block += (int)Math.Floor(value);
+			}
+
+			if (deathRhythm > 0)
+			{
+				forecast.SelfDamage += deathRhythm;
+			}
+
+			if (galvanic > 0 && card.Type == CardType.Power && card.Affliction is Galvanized)
+			{
+				forecast.SelfDamage += galvanic;
+			}
+		}
+
+		return forecast;
 	}
 
 	/// <summary>
