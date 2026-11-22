@@ -1,8 +1,9 @@
-using MegaCrit.Sts2.Core.CardSelection;
+﻿using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Combat.History.Entries;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
+using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Factories;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
@@ -17,6 +18,7 @@ using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.ValueProps;
 using NecroRework.Powers;
 using NecroRework.Stats;
+using NecroRework.Cards;
 using NecroRework.Enchantments;
 
 namespace NecroRework;
@@ -58,6 +60,34 @@ internal static class Reworks
 
         // 响指：奥斯提伤害 7（升级 10）不变；保留张数 1（升级 2）
         [typeof(Snap)] = _ => [new OstyDamageVar(7m, ValueProp.Move), new CardsVar(1)],
+
+        // 戳击：6（9）→ 7（10），升级仍 +3
+        [typeof(Poke)] = _ => [new OstyDamageVar(7m, ValueProp.Move)],
+
+        // 重压：12（16）→ 14（18），升级仍 +4
+        [typeof(Flatten)] = _ => [new OstyDamageVar(14m, ValueProp.Move)],
+
+        // 扫荡凝视（哨位模式生成）：改为全体两次 5（8）
+        [typeof(SweepingGaze)] = _ => [new OstyDamageVar(5m, ValueProp.Move)],
+
+        // 亡灵精通：召唤 5 → 6，升级改成降费（召唤固定 6）
+        [typeof(NecroMastery)] = _ => [new SummonVar(6m)],
+
+        // 根除：11（14）→ 14（17），升级仍 +3
+        [typeof(Eradicate)] = _ => [new DamageVar(14m, ValueProp.Move)],
+
+        // 击掌：11（13）→ 14（16），升级仍 +2（易伤仍 1 → 2）
+        [typeof(HighFive)] = _ => [new OstyDamageVar(14m, ValueProp.Move), new PowerVar<VulnerablePower>(2m)],
+
+        // 猛晃：保留 + 5（7）伤害；本场每累计 15 点奥斯提伤害就多打一次
+        [typeof(Rattle)] = _ =>
+        [
+            new OstyDamageVar(5m, ValueProp.Move),
+            new CalculationBaseVar(0m),
+            new CalculationExtraVar(1m),
+            new CalculatedHitCountVar("CalculatedHits").WithMultiplier(
+                (CardModel card, Creature? _) => 1 + OstyDamageTracker.TotalFor(card.Owner) / HitsPerFifteen)
+        ],
 
         // 鬼火：获得 1 费 → 获得 2 费（消耗、升级给保留都不变）
         [typeof(Wisp)] = _ => [new EnergyVar(2)],
@@ -182,6 +212,12 @@ internal static class Reworks
                 .WithMultiplier((CardModel card, Creature _) => SoulStormFuel(card))
         ],
     };
+
+    /// <summary>猛晃：奥斯提每累计这么多伤害，就多打一次。</summary>
+    private const int HitsPerFifteen = 15;
+
+    /// <summary>碎骨加强模式的触发门槛：奥斯提至少这么多生命值。</summary>
+    private const decimal EmpoweredBoneShardsHp = 24m;
 
     /// <summary>
     /// 牺牲：奥斯提失去的生命值（也就是你获得的格挡）= 它当前生命值的 75%，向下取整。
@@ -627,6 +663,127 @@ internal static class Reworks
                 card.DynamicVars["StrengthLoss"].BaseValue, card.Owner.Creature, card);
         },
 
+        // 扫荡凝视：对所有敌人造成 5（8）点伤害两次
+        [typeof(SweepingGaze)] = async (card, ctx, play) =>
+        {
+            if (Osty.CheckMissingWithAnim(card.Owner)) return;
+
+            await DamageCmd.Attack(card.DynamicVars.OstyDamage.BaseValue)
+                .FromOsty(card.Owner.Osty!, card, play)
+                .TargetingAllOpponents(card.CombatState)
+                .WithHitCount(2)
+                .WithHitFx("vfx/vfx_attack_blunt", null, "blunt_attack.mp3")
+                .Execute(ctx);
+        },
+
+        // 亡灵精通：召唤 6，再挂「敌人吃等量伤害」与「下回合格挡」两个能力
+        [typeof(NecroMastery)] = async (card, ctx, play) =>
+        {
+            await CreatureCmd.TriggerAnim(card.Owner.Creature, "PowerUp", card.Owner.Character.PowerUpAnimDelay);
+
+            await OstyCmd.Summon(ctx, card.Owner, card.DynamicVars.Summon.BaseValue, card);
+
+            await PowerCmd.Apply<NecroMasteryPower>(ctx, card.Owner.Creature, 1m, card.Owner.Creature, card);
+            await PowerCmd.Apply<NecroMasteryGuardPower>(ctx, card.Owner.Creature, 1m, card.Owner.Creature, card);
+        },
+
+        // 碎骨：打完必定牺牲奥斯提；他生命值 ≥24 时这一击变成双倍伤害并附带 1 层虚弱
+        [typeof(BoneShards)] = async (card, ctx, play) =>
+        {
+            if (Osty.CheckMissingWithAnim(card.Owner)) return;
+
+            Creature osty = card.Owner.Osty!;
+            bool empowered = osty.CurrentHp >= EmpoweredBoneShardsHp;
+
+            decimal damage = card.DynamicVars.OstyDamage.BaseValue * (empowered ? 2m : 1m);
+
+            await DamageCmd.Attack(damage).FromOsty(osty, card, play)
+                .TargetingAllOpponents(card.CombatState)
+                .WithHitFx("vfx/vfx_attack_blunt", null, "blunt_attack.mp3")
+                .Execute(ctx);
+
+            await CreatureCmd.GainBlock(card.Owner.Creature, card.DynamicVars.Block, play);
+
+            if (empowered)
+            {
+                await PowerCmd.Apply<WeakPower>(ctx, card.CombatState.HittableEnemies, 1m,
+                    card.Owner.Creature, card);
+            }
+
+            // 不管多少血都会死（保持原版行为）
+            if (card.Owner.IsOstyAlive)
+            {
+                await CreatureCmd.Kill(card.Owner.Osty!, card);
+            }
+        },
+
+        // 击掌：原版效果 + 你与奥斯提平分灾厄（奥斯提那一半向上取整）
+        [typeof(HighFive)] = async (card, ctx, play) =>
+        {
+            if (Osty.CheckMissingWithAnim(card.Owner)) return;
+
+            await DamageCmd.Attack(card.DynamicVars.OstyDamage.BaseValue)
+                .FromOsty(card.Owner.Osty!, card, play)
+                .TargetingAllOpponents(card.CombatState)
+                .WithHitFx("vfx/vfx_attack_blunt", null, "blunt_attack.mp3")
+                .Execute(ctx);
+
+            await PowerCmd.Apply<VulnerablePower>(ctx, card.CombatState.HittableEnemies,
+                card.DynamicVars.Vulnerable.BaseValue, card.Owner.Creature, card);
+
+            int doom = DoomUtil.PlayerDoom(card);
+            if (doom > 0)
+            {
+                DoomUtil.TransferToOsty(ctx, card, (doom + 1) / 2);
+            }
+        },
+
+        // 弥合：格挡 + 至多 3 张手牌本回合保留（其中的虚无牌本回合不自我消耗）
+        [typeof(Mend)] = async (card, ctx, play) =>
+        {
+            await CreatureCmd.TriggerAnim(card.Owner.Creature, "Cast", card.Owner.Character.CastAnimDelay);
+
+            await CreatureCmd.GainBlock(card.Owner.Creature, card.DynamicVars.Block, play);
+
+            var selected = (await CardSelectCmd.FromHand(ctx, card.Owner,
+                new CardSelectorPrefs(new LocString("cards", "MEND.selectionScreenPrompt"), 0, Mend.MaxPick),
+                null, card)).ToList();
+
+            foreach (CardModel picked in selected)
+            {
+                picked.GiveSingleTurnRetain();
+
+                if (picked.Keywords.Contains(CardKeyword.Ethereal))
+                {
+                    MendWard.SuppressEthereal(picked);
+                }
+            }
+        },
+
+        // 降灵：先选抽牌堆一张变灵魂，再把最左侧手牌变灵魂
+        [typeof(Seance)] = async (card, ctx, play) =>
+        {
+            Player owner = card.Owner;
+
+            var selection = (await CardSelectCmd.FromCombatPile(ctx, PileType.Draw.GetPile(owner), owner,
+                new CardSelectorPrefs(CardSelectorPrefs.TransformSelectionPrompt, 1))).ToList();
+
+            await CreatureCmd.TriggerAnim(owner.Creature, "Cast", owner.Character.CastAnimDelay);
+
+            foreach (CardModel picked in selection)
+            {
+                await CardCmd.TransformTo<Soul>(picked);
+            }
+
+            // 选完之后，最左边那张手牌也会变成灵魂
+            CardPile hand = PileType.Hand.GetPile(owner);
+            CardModel? leftmost = hand.Cards.FirstOrDefault();
+            if (leftmost != null)
+            {
+                await CardCmd.TransformTo<Soul>(leftmost);
+            }
+        },
+
         // 牺牲：奥斯提失去自身 75% 生命值 → 你获得等量格挡 → 他吸收你全部灾厄
         [typeof(Sacrifice)] = async (card, ctx, play) =>
         {
@@ -743,6 +900,15 @@ internal static class Reworks
         // 唤起：召唤 4 → 6（原版只 +1）
         [typeof(Invoke)] = card => card.DynamicVars.Summon.UpgradeValueBy(1m),
 
+        // 扫荡凝视：升级 5 → 8（原版是 +5）
+        [typeof(SweepingGaze)] = card => card.DynamicVars.OstyDamage.UpgradeValueBy(3m),
+
+        // 亡灵精通：升级只降费（2 → 1），召唤固定 6
+        [typeof(NecroMastery)] = card => card.EnergyCost.UpgradeBy(-1),
+
+        // 降灵：升级去掉「虚无」（代替原版的降费）
+        [typeof(Seance)] = card => card.RemoveKeyword(CardKeyword.Ethereal),
+
         // 违逆：虚弱 1 → 2（原版只加格挡）
         [typeof(Defy)] = card => card.DynamicVars.Weak.UpgradeValueBy(1m),
 
@@ -827,6 +993,12 @@ internal static class Reworks
 
         // 末日降临：加「保留」
         [typeof(EndOfDays)] = [CardKeyword.Retain],
+
+        // 响指：自带保留
+        [typeof(Snap)] = [CardKeyword.Retain],
+
+        // 猛晃：加「保留」
+        [typeof(Rattle)] = [CardKeyword.Retain],
     };
 
     /// <summary>
@@ -834,6 +1006,9 @@ internal static class Reworks
     /// </summary>
     public static readonly Dictionary<Type, int> Costs = new()
     {
+        // 降灵：1 费 → 0 费
+        [typeof(Seance)] = 0,
+
         // 厄运之衣：2 费 → 1 费（升级前后都是 1 费）
         [typeof(Shroud)] = 1,
     };

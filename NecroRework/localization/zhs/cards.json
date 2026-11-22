@@ -63,5 +63,18 @@
   "SOUL_STORM.description": "造成{CalculatedDamage:diff()}点伤害。\n你的[gold]消耗牌堆[/gold]中每有一张[gold]灵魂[/gold]或附魔了[gold]飘荡[/gold]的牌，伤害增加{ExtraDamage:diff()}。",
   "SHARED_FATE.description": "失去{PlayerStrengthLoss:diff()}点[gold]力量[/gold]。\n敌人失去{EnemyStrengthLoss:diff()}点[gold]力量[/gold]。\n本场战斗中，每当有敌人获得[gold]力量[/gold]时，[gold]奥斯提[/gold]也获得等量[gold]力量[/gold]。",
   "DEATHBRINGER.description": "获得13层[gold]灾厄[/gold]。\n给予所有敌人{DoomPower:diff()}层[gold]灾厄[/gold]和{WeakPower:diff()}层[gold]虚弱[/gold]。",
-  "SACRIFICE.description": "如果[gold]奥斯提[/gold]存活，他失去自身75%的生命值，你获得等量的[gold]格挡[/gold]，然后他吸收你的全部[gold]灾厄[/gold]。{InCombat:\n（获得{IsOstyAlive:{CalculatedBlock:diff()}|0}点[gold]格挡[/gold]）|}"
+  "SACRIFICE.description": "如果[gold]奥斯提[/gold]存活，他失去自身75%的生命值，你获得等量的[gold]格挡[/gold]，然后他吸收你的全部[gold]灾厄[/gold]。{InCombat:\n（获得{IsOstyAlive:{CalculatedBlock:diff()}|0}点[gold]格挡[/gold]）|}",
+  "BEGINNER_MIND.title": "初心",
+  "BEGINNER_MIND.description": "生成3张[gold]找回[/gold]加入你的[gold]手牌[/gold]。\n每回合开始时，将上回合最先被动消耗的3张[gold]虚无[/gold]牌放回[gold]手牌[/gold]，并获得6点[gold]格挡[/gold]。",
+  "SEANCE.title": "降灵",
+  "SEANCE.description": "将你[gold]抽牌堆[/gold]中的一张牌，与最左侧的[gold]手牌[/gold]变化为[gold]灵魂[/gold]。",
+  "BONE_SHARDS.description": "如果[gold]奥斯提[/gold]存活，则他对所有敌人造成{OstyDamage:diff()}点伤害并且你获得{Block:diff()}点[gold]格挡[/gold]，然后[gold]奥斯提[/gold]死去。\n如果[gold]奥斯提[/gold]至少有24点生命值，对所有敌人造成双倍伤害，并给予它们1层[gold]虚弱[/gold]。",
+  "HIGH_FIVE.description": "[gold]奥斯提[/gold]对所有敌人\n造成{OstyDamage:diff()}点伤害并给予它们\n{VulnerablePower:diff()}层[gold]易伤[/gold]。\n你与[gold]奥斯提[/gold]平分你的[gold]灾厄[/gold]（[gold]奥斯提[/gold]承担的一半向上取整）。",
+  "MEND.title": "弥合",
+  "MEND.description": "获得{Block:diff()}点[gold]格挡[/gold]。\n在本回合保留至多3张牌，其中带[gold]虚无[/gold]的牌在本回合不会自我消耗。",
+  "MEND.selectionScreenPrompt": "选择至多3张要保留的牌。",
+  "NECRO_MASTERY.description": "[gold]召唤[/gold]{Summon:diff()}。\n每当[gold]奥斯提[/gold]失去生命值时，所有敌人失去等量生命值，然后在下回合为你提供等量[gold]格挡[/gold]。",
+  "SWEEPING_GAZE.description": "[gold]奥斯提[/gold]对所有敌人造成{OstyDamage:diff()}点伤害两次。",
+  "FLEETING_LIFE.title": "此生渺渺",
+  "FLEETING_LIFE.description": "每回合打出的第6张[gold]虚无[/gold]牌，会使你获得1层[gold]无实体[/gold]。"
 }

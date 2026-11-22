@@ -80,6 +80,9 @@ internal static class PullFromBelowRedirect
 
     private static void OnPlayWrapperPrefix(CardModel __instance) => PlayingCards.Add(__instance);
 
+    /// <summary>这张牌此刻正在被打出（= 主动出牌），供别的模块复用同一份判定。</summary>
+    internal static bool IsBeingPlayed(CardModel card) => PlayingCards.Contains(card);
+
     private static void OnPlayWrapperPostfix(CardModel __instance) => PlayingCards.Remove(__instance);
 
     private static int _traceCount;

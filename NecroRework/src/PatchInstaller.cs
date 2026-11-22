@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
@@ -140,6 +140,16 @@ internal static class PatchInstaller
 
         // 命运同担：敌人获得力量时，奥斯提同步获得等量力量
         Safe("命运同担", () => SharedFateRework.Install(harmony));
+
+        // 飘荡的附魔图标（原版接口只吃 res:// 里的 CompressedTexture2D，这里在卡面刷新后替换）
+        Safe("飘荡图标", () => DriftIcon.Install(harmony));
+
+        // 初心：记录「被动消耗的虚无牌」，供每回合回收
+        Safe("被动消耗记录", () => PassiveExhaustLog.Install(harmony));
+        Safe("弥合虚无保护", () => MendWard.Install(harmony));
+
+        // 奥斯提累计伤害统计（猛晃等卡按累计值结算）
+        Safe("奥斯提伤害统计", () => OstyDamageTracker.Install(harmony));
 
         Main.Log.Info($"[{Main.ModId}] 已挂载 {Reworks.Vars.Count} 个数值改写 / {Reworks.Play.Count} 个效果改写 / {Reworks.Upgrade.Count} 个升级补充 / {Reworks.UpgradeReplace.Count} 个升级替换 / {Reworks.Costs.Count} 个费用改写 / {Reworks.Keywords.Count} 个关键词改写 / {Reworks.Tips.Count} 个提示改写");
 

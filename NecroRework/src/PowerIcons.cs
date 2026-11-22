@@ -99,6 +99,18 @@ internal static class PowerIcons
                     // 命运同担同步的是力量，直接用「力量」的图标
                     __result = ModelDb.Power<StrengthPower>().PackedIconPath;
                     break;
+                case BeginnerMindPower:
+                    // 初心借用「灾厄之种」这类回合开始型能力的外观，用原版「预谋」图标
+                    __result = ModelDb.Power<CallOfTheVoidPower>().PackedIconPath;
+                    break;
+                case FleetingLifePower:
+                    // 此生渺渺给的是无实体，借用「无实体」的图标
+                    __result = ModelDb.Power<IntangiblePower>().PackedIconPath;
+                    break;
+                case NecroMasteryGuardPower:
+                    // 亡灵精通的附赠能力，和本体共用图标
+                    __result = ModelDb.Power<NecroMasteryPower>().PackedIconPath;
+                    break;
             }
         }
         catch (Exception e)

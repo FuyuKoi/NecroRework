@@ -110,7 +110,7 @@ internal static class CardArt
 
     /// <summary>还没有专属卡图的新卡，统一用游戏自带的 beta 占位图。</summary>
     private static bool UsesPlaceholder(CardModel card) =>
-        card is Continuation or Drag or OminousPunch or Cover or Sublimation or LifeAndDeath;
+        card is FleetingLife or Continuation or Drag or OminousPunch or Cover or Sublimation or LifeAndDeath or BeginnerMind or Mend;
 
     private static Texture2D Load(string fileName)
     {

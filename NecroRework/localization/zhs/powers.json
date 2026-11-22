@@ -24,5 +24,11 @@
   "DEATH_RHYTHM_POWER.title": "死亡律动",
   "DEATH_RHYTHM_POWER.description": "在本回合，你每打出一张牌就受到2点伤害。不可再额外叠加。",
   "SHARED_FATE_POWER.title": "命运同担",
-  "SHARED_FATE_POWER.description": "本场战斗中，每当有敌人获得[gold]力量[/gold]时，[gold]奥斯提[/gold]也获得等量[gold]力量[/gold]。"
+  "SHARED_FATE_POWER.description": "本场战斗中，每当有敌人获得[gold]力量[/gold]时，[gold]奥斯提[/gold]也获得等量[gold]力量[/gold]。",
+  "BEGINNER_MIND_POWER.title": "初心",
+  "BEGINNER_MIND_POWER.description": "每回合开始时，将上回合最先被动消耗的3张[gold]虚无[/gold]牌放回[gold]手牌[/gold]，并获得6点[gold]格挡[/gold]。",
+  "FLEETING_LIFE_POWER.title": "此生渺渺",
+  "FLEETING_LIFE_POWER.description": "你每打出一张[gold]虚无[/gold]牌就会累积1点，累积到6点后获得1层[gold]无实体[/gold]，然后重新累积。\n（本回合已累积{Amount}点）",
+  "NECRO_MASTERY_GUARD_POWER.title": "冥归",
+  "NECRO_MASTERY_GUARD_POWER.description": "奥斯提每失去1点生命值，你就积攒{Amount}点[gold]格挡[/gold]，下回合开始时获得。"
 }
