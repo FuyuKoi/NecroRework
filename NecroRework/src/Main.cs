@@ -84,7 +84,8 @@ public static class Main
 
         // 透支：罕见品质技能牌
         ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(Overdraft));
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(AllIsVoid));
 
-        Log.Info($"[{ModId}] 已注册新卡牌 DriftTestCard / LookBack / Touch / Retrieve / Exchange / CraftSpirit / Gather / Continuation / GhostLantern / Drag / OminousPunch / Cover / Sublimation / LifeAndDeath / Overdraft -> NecrobinderCardPool");
+        Log.Info($"[{ModId}] 已注册新卡牌 DriftTestCard / LookBack / Touch / Retrieve / Exchange / CraftSpirit / Gather / Continuation / GhostLantern / Drag / OminousPunch / Cover / Sublimation / LifeAndDeath / Overdraft / AllIsVoid -> NecrobinderCardPool");
     }
 }

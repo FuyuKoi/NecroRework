@@ -75,6 +75,24 @@ internal static class PatchInstaller
         PatchProperty(harmony, tipsPrefix, "ExtraHoverTips", Reworks.Tips.Keys);
         PatchProperty(harmony, costPrefix, "CanonicalEnergyCost", Reworks.Costs.Keys);
 
+        // 不再提供格挡的卡：把原版自己 override 的 GainsBlock 改回 false，
+        // 否则「提升格挡值」类附魔的候选里还会列出它们。
+        foreach (Type noBlockType in Reworks.NoGainsBlock)
+        {
+            Safe($"取消格挡标记 {noBlockType.Name}", () =>
+            {
+                MethodInfo? gainsBlock = AccessTools.PropertyGetter(noBlockType, "GainsBlock");
+                if (gainsBlock is null)
+                {
+                    Main.Log.Warn($"[{Main.ModId}] {noBlockType.Name} 没有声明 GainsBlock，跳过");
+                    return;
+                }
+
+                harmony.Patch(gainsBlock, postfix: new HarmonyMethod(
+                    AccessTools.Method(typeof(Patches), nameof(Patches.GainsBlockPostfix))));
+            });
+        }
+
         // 下面每一项都独立兜异常：任何一项挂载失败，都不能连累后面的功能。
         // 自制能力的图标重定向 + 为你而死的自定义图标
         Safe("能力图标", () => PowerIcons.Install(harmony));
@@ -89,6 +107,9 @@ internal static class PatchInstaller
 
         // 骨笛重做：每回合奥斯提第一次攻击时给 5 点格挡
         Safe("骨笛重做", () => BoneFluteRework.Install(harmony));
+
+        // 初始命匣加强（缚魂命匣 / 无界命匣的召唤量）
+        Safe("初始遗物加强", () => StarterRelicRework.Install(harmony));
 
         // 亡魂牵引：消耗虚无牌时改为自动打出
         Safe("亡魂牵引", () => PullFromBelowRedirect.Install(harmony));
@@ -113,6 +134,12 @@ internal static class PatchInstaller
 
         // 给我们自己新加的卡兜住 OnPlay 里的异步异常（异常会让出牌流程卡死）
         Safe("出牌异常保护", () => InstallTaskGuards(harmony));
+
+        // 关键词自检：排查「灵魂之力」选不中某些消耗牌的问题（只打日志，不改行为）
+        Safe("关键词自检", () => KeywordAudit.Install(harmony));
+
+        // 命运同担：敌人获得力量时，奥斯提同步获得等量力量
+        Safe("命运同担", () => SharedFateRework.Install(harmony));
 
         Main.Log.Info($"[{Main.ModId}] 已挂载 {Reworks.Vars.Count} 个数值改写 / {Reworks.Play.Count} 个效果改写 / {Reworks.Upgrade.Count} 个升级补充 / {Reworks.UpgradeReplace.Count} 个升级替换 / {Reworks.Costs.Count} 个费用改写 / {Reworks.Keywords.Count} 个关键词改写 / {Reworks.Tips.Count} 个提示改写");
 
@@ -343,6 +370,20 @@ internal static class Patches
 
         __result = keywords;
         return false;
+    }
+
+    /// <summary>
+    /// <see cref="Reworks.NoGainsBlock"/> 里的卡：把 <c>GainsBlock</c> 强制改回 false。
+    /// </summary>
+    public static void GainsBlockPostfix(object __instance, ref bool __result)
+    {
+        if (!__result) return;
+        if (__instance is not CardModel card) return;
+
+        if (Reworks.NoGainsBlock.Contains(card.GetType()))
+        {
+            __result = false;
+        }
     }
 
     public static bool TipsPrefix(object __instance, ref IEnumerable<MegaCrit.Sts2.Core.HoverTips.IHoverTip> __result)    {

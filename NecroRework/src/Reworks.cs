@@ -17,6 +17,7 @@ using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.ValueProps;
 using NecroRework.Powers;
 using NecroRework.Stats;
+using NecroRework.Enchantments;
 
 namespace NecroRework;
 
@@ -63,7 +64,16 @@ internal static class Reworks
 
         // 鞭打：给予 13（升级 16）层灾厄、抽 1（升级 2）张
         //       → 给予 14（升级 17）层灾厄、抽 2 张（张数不随升级涨，见 UpgradeReplace）
-        [typeof(Scourge)] = _ => [new PowerVar<DoomPower>(15m), new CardsVar(2)],
+        [typeof(Scourge)] = _ => [new PowerVar<DoomPower>(15m), new CardsVar(2), new IntVar("Transfer", 10m)],
+
+        // 死亡之门：格挡 6 → 7（升级仍 +1 → 8）
+        [typeof(DeathsDoor)] = _ => [new BlockVar(7m, ValueProp.Move), new RepeatVar(2)],
+
+        // 拖延：格挡 11 → 14（升级仍 +2 → 16）
+        [typeof(Delay)] = _ => [new BlockVar(14m, ValueProp.Move), new EnergyVar(1)],
+
+        // 湮灭：每次给的灾厄 3 → 5（升级仍 +1 → 6）
+        [typeof(Oblivion)] = _ => [new PowerVar<DoomPower>(5m)],
 
         // 负能量脉冲：格挡 5（升级 6）、全体 7（升级 11）层灾厄
         //             → 格挡 7（升级 8）、全体 9（升级 13）层灾厄
@@ -146,7 +156,75 @@ internal static class Reworks
 
         // 弱化之触：原版只减 8（11）点临时力量，现在自己获得 6 层灾厄，减力量提到 12（升级 16）
         [typeof(EnfeeblingTouch)] = _ => [new DynamicVar("StrengthLoss", 12m), new PowerVar<DoomPower>(6m)],
+
+        // 牺牲：不再「立刻杀死奥斯提」，改为他失去自身 75% 生命值（向下取整），
+        // 你获得等量格挡，然后他吸收你的全部灾厄。
+        [typeof(Sacrifice)] = _ =>
+        [
+            new CalculationBaseVar(0m),
+            new CalculationExtraVar(1m),
+            new CalculatedBlockVar(ValueProp.Move).WithMultiplier(
+                (CardModel card, Creature? _) => SacrificeBlockFrom(card))
+        ],
+
+        // 死亡使者：灾厄 21 → 31，虚弱 1 → 2（升级仍 +5 灾厄、+1 虚弱 → 36 灾厄 / 3 虚弱）
+        [typeof(Deathbringer)] = _ => [new PowerVar<DoomPower>(31m), new PowerVar<WeakPower>(2m)],
+
+        // 末日降临：灾厄 29 → 35（升级仍 +8 → 43）
+        [typeof(EndOfDays)] = _ => [new PowerVar<DoomPower>(35m)],
+
+        // 灵魂风暴：基础伤害提到 12，消耗牌堆里每有一张「灵魂」或「附了飘荡的牌」+6（升级 +7）
+        [typeof(SoulStorm)] = _ =>
+        [
+            new CalculationBaseVar(12m),
+            new ExtraDamageVar(6m),
+            new CalculatedDamageVar(ValueProp.Move)
+                .WithMultiplier((CardModel card, Creature _) => SoulStormFuel(card))
+        ],
     };
+
+    /// <summary>
+    /// 牺牲：奥斯提失去的生命值（也就是你获得的格挡）= 它当前生命值的 75%，向下取整。
+    /// 取整方向决定它永远杀不死自己（1 血时失去 0 点）。
+    /// </summary>
+    private static decimal SacrificeBlockFrom(CardModel card)
+    {
+        if (!card.Owner.IsOstyAlive)
+        {
+            return 0m;
+        }
+
+        Creature? osty = card.Owner.Osty;
+        if (osty is not { IsAlive: true })
+        {
+            return 0m;
+        }
+
+        return Math.Floor(osty.CurrentHp * 0.75m);
+    }
+
+    /// <summary>
+    /// 灵魂风暴的加伤来源：消耗牌堆里每一张「灵魂」，或任何附魔了「飘荡」的牌（同一张只算一次）。
+    /// </summary>
+    private static int SoulStormFuel(CardModel card)
+    {
+        var pile = card.Owner?.PlayerCombatState?.ExhaustPile;
+        if (pile is null)
+        {
+            return 0;
+        }
+
+        int count = 0;
+        foreach (CardModel c in pile.Cards)
+        {
+            if (c is Soul || c.Enchantment is DriftEnchantment)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
 
     /// <summary>
     /// 改效果：卡牌类型 -> 新的 OnPlay 实现。
@@ -239,13 +317,14 @@ internal static class Reworks
             await DoomUtil.ApplyToSelf(ctx, card, 5m);
         },
 
-        // 鞭打：先把至多 7 层灾厄从自己（角色 → 奥斯提）转给目标，再给目标上 14 层，最后抽 2 张。
+        // 鞭打：先把至多 10（升级 12）层灾厄从自己（角色 → 奥斯提）转给目标，
+        // 再给目标上 5（升级 21）层灾厄，最后抽 2 张。
         [typeof(Scourge)] = async (card, ctx, play) =>
         {
             if (play.Target is not { } target) return;
 
             await CreatureCmd.TriggerAnim(card.Owner.Creature, "Cast", card.Owner.Character.CastAnimDelay);
-            await DoomUtil.TransferToEnemy(ctx, card, target, 12m);
+            await DoomUtil.TransferToEnemy(ctx, card, target, card.DynamicVars["Transfer"].BaseValue);
             await PowerCmd.Apply<DoomPower>(ctx, target, card.DynamicVars.Doom.BaseValue, card.Owner.Creature, card);
             await CardPileCmd.Draw(ctx, card.DynamicVars.Cards.BaseValue, card.Owner);
         },
@@ -548,6 +627,68 @@ internal static class Reworks
                 card.DynamicVars["StrengthLoss"].BaseValue, card.Owner.Creature, card);
         },
 
+        // 牺牲：奥斯提失去自身 75% 生命值 → 你获得等量格挡 → 他吸收你全部灾厄
+        [typeof(Sacrifice)] = async (card, ctx, play) =>
+        {
+            if (Osty.CheckMissingWithAnim(card.Owner)) return;
+
+            Creature osty = card.Owner.Osty!;
+
+            decimal blockGain = SacrificeBlockFrom(card);
+
+            await CreatureCmd.TriggerAnim(card.Owner.Creature, "Cast", card.Owner.Character.CastAnimDelay);
+
+            if (blockGain > 0m)
+            {
+                await CreatureCmd.Damage(ctx, osty, blockGain,
+                    ValueProp.Unblockable | ValueProp.Unpowered | ValueProp.Move, card, play);
+            }
+
+            await CreatureCmd.GainBlock(card.Owner.Creature, blockGain, ValueProp.Move, play);
+
+            int doom = DoomUtil.PlayerDoom(card);
+            if (doom > 0)
+            {
+                DoomUtil.TransferToOsty(ctx, card, doom);
+            }
+        },
+
+        // 死亡使者：先自己吃 13 层灾厄（触发死亡之门 / 厄运之衣），再照原版给全体上灾厄与虚弱
+        [typeof(Deathbringer)] = async (card, ctx, play) =>
+        {
+            await CreatureCmd.TriggerAnim(card.Owner.Creature, "Cast", card.Owner.Character.CastAnimDelay);
+
+            await DoomUtil.ApplyToSelf(ctx, card, 13m);
+
+            if (card.CombatState != null)
+            {
+                await PowerCmd.Apply<DoomPower>(ctx, card.CombatState.HittableEnemies,
+                    card.DynamicVars.Doom.BaseValue, card.Owner.Creature, card);
+                await PowerCmd.Apply<WeakPower>(ctx, card.CombatState.HittableEnemies,
+                    card.DynamicVars.Weak.BaseValue, card.Owner.Creature, card);
+            }
+        },
+
+        // 命运同担：原版「你与目标各失去若干力量」不变，额外给一层
+        // 「本场战斗中任何敌人获得力量时，奥斯提也获得等量力量」。
+        [typeof(SharedFate)] = async (card, ctx, play) =>
+        {
+            if (play.Target is not { } target) return;
+
+            await CreatureCmd.TriggerAnim(card.Owner.Creature, "Cast", card.Owner.Character.CastAnimDelay);
+
+            await PowerCmd.Apply<StrengthPower>(ctx, card.Owner.Creature,
+                -card.DynamicVars["PlayerStrengthLoss"].BaseValue, card.Owner.Creature, card);
+
+            await PowerCmd.Apply<StrengthPower>(ctx, target,
+                -card.DynamicVars["EnemyStrengthLoss"].BaseValue, card.Owner.Creature, card);
+
+            if (card.Owner.Creature.GetPower<SharedFatePower>() == null)
+            {
+                await PowerCmd.Apply<SharedFatePower>(ctx, card.Owner.Creature, 1m, card.Owner.Creature, card);
+            }
+        },
+
         // 虚空之唤：先照旧挂上「回合开始加牌」的能力，再从卡池里随机展示 3 张
         // 「升级前就带虚无」的牌，选中一张置入手牌。
         [typeof(CallOfTheVoid)] = async (card, ctx, play) =>
@@ -614,8 +755,12 @@ internal static class Reworks
     /// </summary>
     public static readonly Dictionary<Type, Action<CardModel>> UpgradeReplace = new()
     {
-        // 鞭打：原版升级会「灾厄 +3、抽牌 +1」，我们只要灾厄 14 → 17，抽牌固定 2 张
-        [typeof(Scourge)] = card => card.DynamicVars.Doom.UpgradeValueBy(3m),
+        // 鞭打：原版升级会「灾厄 +3、抽牌 +1」，我们只要灾厄 15 → 21（+6）、转移 10 → 12（+2），抽牌固定 2 张
+        [typeof(Scourge)] = card =>
+        {
+            card.DynamicVars.Doom.UpgradeValueBy(6m);
+            card.DynamicVars["Transfer"].UpgradeValueBy(2m);
+        },
 
         // 吸引仇恨：原版升级会「召唤 +1、格挡 +2」，现在是「召唤 8 → 10、持续 1 → 2 回合」
         [typeof(PullAggro)] = card =>
@@ -646,6 +791,9 @@ internal static class Reworks
         // 血肉戏法：原版 +4，现在 5 → 8 是 +3
         [typeof(SleightOfFlesh)] = card => card.DynamicVars["SleightOfFleshPower"].UpgradeValueBy(3m),
 
+        // 灵魂风暴：原版升级是每张 +2（4 → 6），现在每张 6 → 7 只 +1
+        [typeof(SoulStorm)] = card => card.DynamicVars.ExtraDamage.UpgradeValueBy(1m),
+
         // 纠缠：生命流失固定 8 不涨，升级只把生成的灵魂换成灵魂+
         [typeof(Haunt)] = _ => { },
 
@@ -673,6 +821,12 @@ internal static class Reworks
 
         // 厄运之衣：加「虚无」
         [typeof(Shroud)] = [CardKeyword.Ethereal],
+
+        // 死亡之门：加「保留」
+        [typeof(DeathsDoor)] = [CardKeyword.Retain],
+
+        // 末日降临：加「保留」
+        [typeof(EndOfDays)] = [CardKeyword.Retain],
     };
 
     /// <summary>
@@ -695,4 +849,10 @@ internal static class Reworks
         // 洁净：召唤改成移除灾厄，原版「召唤」悬停提示要去掉，只留「消耗」提示
         [typeof(Cleanse)] = _ => [HoverTipFactory.FromKeyword(CardKeyword.Exhaust)],
     };
+
+    /// <summary>
+    /// 这些卡原版自己 override 了 <c>GainsBlock =&gt; true</c>，但重做后已经不提供格挡了。
+    /// 不把标记改回 false 的话，「提升格挡值」类附魔的候选列表里还会出现它们（选中了也不会有任何效果）。
+    /// </summary>
+    public static readonly HashSet<Type> NoGainsBlock = [typeof(PullAggro)];
 }

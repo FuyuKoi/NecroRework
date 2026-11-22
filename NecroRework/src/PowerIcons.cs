@@ -95,6 +95,10 @@ internal static class PowerIcons
                     // 沿用原版「临时减力量」那个能力的图标
                     __result = ModelDb.Power<MonarchsGazeStrengthDownPower>().PackedIconPath;
                     break;
+                case SharedFatePower:
+                    // 命运同担同步的是力量，直接用「力量」的图标
+                    __result = ModelDb.Power<StrengthPower>().PackedIconPath;
+                    break;
             }
         }
         catch (Exception e)
