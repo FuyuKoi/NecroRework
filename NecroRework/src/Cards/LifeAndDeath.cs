@@ -1,4 +1,4 @@
-using MegaCrit.Sts2.Core.Commands;
+﻿using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
@@ -13,7 +13,7 @@ namespace NecroRework.Cards;
 
 /// <summary>
 /// 生与死：2（升级 1）费攻击（罕见/蓝卡），虚无。
-/// 奥斯提造成等同于他缺失生命值的伤害；
+/// 奥斯提造成等同于「他缺失的生命值 + 他身上的灾厄层数」的伤害；
 /// 你接下来获得的 25 层灾厄改由奥斯提承担，但他在获得这些灾厄时也会受到等量伤害。
 /// </summary>
 public sealed class LifeAndDeath : CardModel
@@ -31,17 +31,21 @@ public sealed class LifeAndDeath : CardModel
     [
         new CalculationBaseVar(0m),
         new ExtraDamageVar(1m),
-        new CalculatedDamageVar(ValueProp.Move).FromOsty().WithMultiplier((CardModel card, Creature _) => MissingHpOf(card)),
+        new CalculatedDamageVar(ValueProp.Move).FromOsty().WithMultiplier((CardModel card, Creature _) => DamageOf(card)),
     ];
 
-    /// <summary>奥斯提缺失的生命值（不在场就按 0 算）。</summary>
-    public static int MissingHpOf(CardModel card)
+    /// <summary>
+    /// 这一拳的伤害 = 奥斯提缺失的生命值 + 他身上的灾厄层数（不在场就按 0 算）。
+    /// </summary>
+    public static int DamageOf(CardModel card)
     {
         // 百科里拿到的是 canonical 模型，访问 Owner 会抛 CanonicalModelException
         if (card.IsCanonical) return 0;
         if (card.Owner?.Osty is not { IsAlive: true } osty) return 0;
 
-        return Math.Max(0, osty.MaxHp - osty.CurrentHp);
+        int missing = Math.Max(0, osty.MaxHp - osty.CurrentHp);
+        int doom = (int)DoomUtil.DoomOf(osty);
+        return missing + Math.Max(0, doom);
     }
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
@@ -50,11 +54,11 @@ public sealed class LifeAndDeath : CardModel
         if (Osty.CheckMissingWithAnim(Owner)) return;
         if (Owner.Osty is not { IsAlive: true } osty) return;
 
-        int missing = MissingHpOf(this);
+        int damage = DamageOf(this);
 
-        if (missing > 0)
+        if (damage > 0)
         {
-            await DamageCmd.Attack(missing)
+            await DamageCmd.Attack(damage)
                 .FromOsty(osty, this, cardPlay)
                 .Targeting(target)
                 .WithHitFx("vfx/vfx_attack_slash")

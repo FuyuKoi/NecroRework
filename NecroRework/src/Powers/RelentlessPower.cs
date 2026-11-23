@@ -21,6 +21,9 @@ public sealed class RelentlessPower : PowerModel
     /// <summary>触发一次易伤需要的推进次数（也就是计数器的初始值）。</summary>
     public const int HitsPerTrigger = 2;
 
+    /// <summary>每次给出易伤时顺带给它的召唤量。</summary>
+    public const decimal SummonOnVulnerable = 6m;
+
     [ThreadStatic] private static int _suppress;
 
     /// <summary>紧追不放这张牌自己打出的那一下攻击不算推进，避免一次打出掉两格。</summary>
@@ -69,6 +72,12 @@ public sealed class RelentlessPower : PowerModel
         counter?.SetAmount(HitsPerTrigger);
 
         await PowerCmd.Apply<VulnerablePower>(choiceContext, Owner, Amount, Applier, null);
+
+        // 每次施加易伤的同时，再给施加者 6 点召唤。
+        if (Applier?.Player is { } summoner)
+        {
+            await OstyCmd.Summon(choiceContext, summoner, SummonOnVulnerable, this);
+        }
     }
 
     public override async Task AfterSideTurnEnd(PlayerChoiceContext choiceContext, CombatSide side,

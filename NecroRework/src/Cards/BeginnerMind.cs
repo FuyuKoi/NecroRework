@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Models;
 using NecroRework.Powers;
 
@@ -20,6 +21,10 @@ public sealed class BeginnerMind : CardModel
         : base(1, CardType.Power, CardRarity.Uncommon, TargetType.Self)
     {
     }
+
+    // 悬停时把「找回」的卡面也显示出来（跟猎人的刀刃之舞显示小刀一个原理）
+    protected override IEnumerable<IHoverTip> ExtraHoverTips =>
+        [HoverTipFactory.FromCard<Retrieve>()];
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {

@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Models.CardPools;
@@ -52,8 +52,7 @@ public static class Main
     /// </summary>
     private static void RegisterContent()
     {
-        // 调试卡：进亡灵契约师的卡池
-        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(DriftTestCard));
+        // 调试卡 DriftTestCard 不再入池（避免被当作奖励抽到）；类仍保留，可用控制台 `card DRIFT_TEST_CARD` 调出。
 
         // 回眸：普通品质技能牌，跟着白卡一起出现在卡牌奖励里
         ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(LookBack));
@@ -89,7 +88,16 @@ public static class Main
         ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(FleetingLife));
         ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(Mend));
         ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(Gaze));
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(SoulGather));
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(Forsake));
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(GraveFriend));
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(SoulBarrier));
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(RiverOfOblivion));
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(WorldBurden));
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(LivingEnd));
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(TurnToDust));
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(RebornAnew));
 
-        Log.Info($"[{ModId}] 已注册新卡牌 DriftTestCard / LookBack / Touch / Retrieve / Exchange / CraftSpirit / Gather / Continuation / GhostLantern / Drag / OminousPunch / Cover / Sublimation / LifeAndDeath / Overdraft / AllIsVoid / BeginnerMind / FleetingLife / Mend / Gaze -> NecrobinderCardPool");
+        Log.Info($"[{ModId}] 已注册新卡牌 LookBack / Touch / Retrieve / Exchange / CraftSpirit / Gather / Continuation / GhostLantern / Drag / OminousPunch / Cover / Sublimation / LifeAndDeath / Overdraft / AllIsVoid / BeginnerMind / FleetingLife / Mend / Gaze / SoulGather / Forsake / GraveFriend / SoulBarrier / RiverOfOblivion / WorldBurden / LivingEnd / TurnToDust / RebornAnew -> NecrobinderCardPool");
     }
 }

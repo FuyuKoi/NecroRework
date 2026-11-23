@@ -82,9 +82,15 @@ internal static class DriftPatches
         private static bool Prefix(PlayerChoiceContext choiceContext, CardModel card, bool causedByEthereal,
                                    bool skipVisuals, ref Task<CardPileAddResult?> __result)
         {
+            // 这段逻辑已经搬到 PullFromBelowRedirect.ExhaustAddPrefix（CardPileCmd.Add 的消耗漏斗）：
+            // 回合结束时虚无牌自烧不走 CardCmd.Exhaust，挂在这里会漏掉一半情况，
+            // 两处都挂又会给两次格挡。这里保留成空操作，只作为「曾经挂在哪里」的备忘。
+            return true;
+            /*
             if (_running || !IsDrift(card)) return true;
             __result = Run(choiceContext, card, causedByEthereal, skipVisuals);
             return false;
+            */
         }
 
         private static async Task<CardPileAddResult?> Run(PlayerChoiceContext ctx, CardModel card,

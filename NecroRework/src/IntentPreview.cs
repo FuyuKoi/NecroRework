@@ -35,6 +35,10 @@ internal static class IntentPreview
 	private const string ColorOpen = "[color=#c91515e6][font_size=22]";
 	private const string ColorClose = "[/font_size][/color]";
 
+	/// <summary>「死者苏生」护佑期间的提示色：青色，用来表示这一手打不到人。</summary>
+	private const string SafeColorOpen = "[color=#00d9ffe6][font_size=22]";
+	private const string SafeColorClose = "[/font_size][/color]";
+
 	/// <summary>每张「飘荡」牌在回合结束自动消耗时给的格挡。</summary>
 	private const int DriftBlock = 4;
 
@@ -176,6 +180,10 @@ internal static class IntentPreview
 
 		bool guard = ostyHp > 0 && osty.HasPower<OstyGuardPower>();
 
+		// 死者苏生的护佑还在：这一段敌人回合里，骨妹和奥斯提都不会掉血（也不会死于灾厄），
+		// 所以所有攻击意图都显示青色的 0。
+		bool undying = player.HasPower<ReanimateWardPower>();
+
 		// 瓦皮（Wuppy）：「瓦皮的忠诚」在扣格挡之前就把攻击目标改成瓦皮自己，
 		// 所以它活着的每一段攻击，玩家既不掉血、也不消耗格挡；瓦皮被打死之后，
 		// 后面的段数（和后面的敌人）才回到「格挡 → 奥斯提」的老规则。
@@ -218,6 +226,12 @@ internal static class IntentPreview
 
 				if (single <= 0)
 				{
+					continue;
+				}
+
+				if (undying)
+				{
+					Suffixes[intent] = SafeColorOpen + "（0）" + SafeColorClose;
 					continue;
 				}
 

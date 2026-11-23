@@ -116,10 +116,21 @@ internal static class OstySplit
 
             var osty = player.Player?.Osty;
 
-            // 奥斯提那份向上取整，且不能超过当前血量；超出部分自然落回玩家
+            // 取整规则（用户 2026-11-23 定）：
+            //   整数伤害 → 奥斯提那份向上取整（3 → 2/1、5 → 3/2），保留「奥斯提多担一点」的手感；
+            //   带小数的伤害（易伤×虚弱把 2 变成 2.25 这种）→ 两边精确对半，否则 ceil 会把几乎全部推给奥斯提；
+            //   任何情况下份额都不超过本次未格挡伤害、也不为负
+            //   （曾经 0.250 → 奥斯提 1 / 玩家 −0.75，玩家反而回血）。
             var ostyShare = 0m;
             if (osty is { IsAlive: true })
-                ostyShare = Math.Min(Math.Ceiling(amount / 2m), osty.CurrentHp);
+            {
+                var half = amount / 2m;
+                var wholeDamage = amount == Math.Floor(amount);
+                ostyShare = Math.Min(wholeDamage ? Math.Ceiling(half) : half, amount);
+                ostyShare = Math.Min(ostyShare, osty.CurrentHp);
+            }
+
+            if (ostyShare < 0m) ostyShare = 0m;
 
             var playerShare = amount - ostyShare;
 

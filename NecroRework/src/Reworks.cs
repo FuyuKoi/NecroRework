@@ -177,11 +177,20 @@ internal static class Reworks
         [typeof(Parse)] = _ => [new CardsVar(3), new PowerVar<DoomPower>(6m)],
 
         // 挽歌：每次召唤 3（升级 4）→ 5（升级 6）；灵魂张数改为 X+2（Play 里加）
-        [typeof(Dirge)] = _ => [new SummonVar(5m)],
+        [typeof(Dirge)] = _ => [new SummonVar(6m)],
 
-        // 增生：去掉召唤，只保留治疗 5（升级 8）；
-        //       SummonVar(0) 只是留着给原版悬停提示取用，卡面上不会显示
-        [typeof(Spur)] = _ => [new HealVar(5m), new SummonVar(0m)],
+        // 增生：额外挂一个「实际能拿多少格挡」的展示变量（含这次治疗 + 本回合已回的血，再吃敏捷/脆弱）
+        // 注意：CalculatedBlockVar 读的是 CalculationBase(键 CalculationBase) + CalculationExtra(键 CalculationExtra)，
+        //       两个键缺一个都会在 DynamicVarSet.InitializeWithOwner 抛 KeyNotFoundException
+        //       （奖励生成时炸 = 打完没有结算界面）。
+        [typeof(Spur)] = _ =>
+        [
+            new CalculationBaseVar(0m),
+            new CalculationExtraVar(1m),
+            new HealVar(5m),
+            new SummonVar(0m),
+            new CalculatedBlockVar(ValueProp.Move).WithMultiplier((CardModel card, Creature? _) => SpurBlockPreview(card)),
+        ],
 
         // 腐烂：每次施加的层数 2（升级 3）→ 1（升级 2），实际施加两次
         [typeof(Putrefy)] = _ => [new DynamicVar("Power", 1m)],
@@ -302,6 +311,39 @@ internal static class Reworks
         {
             return 1;
         }
+    }
+
+    /// <summary>
+    /// 增生能拿到的格挡（给卡面「（获得？点格挡）」提示用）：
+    /// 本回合奥斯提已经增加过的生命值 + 这一次治疗的落地量（受生命上限限制）。
+    /// 最终数值还会经过 Hook.ModifyBlock，所以敏捷 / 脆弱都会算进去。
+    /// </summary>
+    private static decimal SpurBlockPreview(CardModel card)
+    {
+        // 百科里拿到的是 canonical 模型，没有 Owner，必须提前短路
+        if (card.IsCanonical)
+        {
+            return 0m;
+        }
+
+        Player? owner = card.Owner;
+        if (owner == null)
+        {
+            return 0m;
+        }
+
+        decimal gained = OstyHpGainTracker.GainedThisTurn(owner);
+
+        if (owner.Osty is not { IsAlive: true } osty)
+        {
+            return gained;
+        }
+
+        // 这次治疗最多只能补到满血，溢出的部分不算
+        decimal missing = Math.Max(0m, osty.MaxHp - osty.CurrentHp);
+        decimal heal = Math.Min(card.DynamicVars.Heal.BaseValue, missing);
+
+        return gained + Math.Max(0m, heal);
     }
 
     /// <summary>
@@ -871,6 +913,21 @@ internal static class Reworks
             }
         },
 
+        // 哨卫模式：打出后，如果这张牌是升级版，就给这一层能力打标记，
+        // 让它每回合生成的是升级版扫荡凝视（见 SentryModePlus）。
+        [typeof(SentryMode)] = async (card, ctx, play) =>
+        {
+            await CreatureCmd.TriggerAnim(card.Owner.Creature, "PowerUp", card.Owner.Character.PowerUpAnimDelay);
+
+            SentryModePower? power = await PowerCmd.Apply<SentryModePower>(ctx, card.Owner.Creature,
+                card.DynamicVars["SentryModePower"].BaseValue, card.Owner.Creature, card);
+
+            if (card.IsUpgraded && power != null)
+            {
+                SentryModePlus.Mark(power);
+            }
+        },
+
         // 降灵：先选抽牌堆一张变灵魂，再把最左侧手牌变灵魂
         [typeof(Seance)] = async (card, ctx, play) =>
         {
@@ -886,12 +943,12 @@ internal static class Reworks
                 await CardCmd.TransformTo<Soul>(picked);
             }
 
-            // 选完之后，最左边那张手牌也会变成灵魂
+            // 选完之后，最右边那张手牌也会变成灵魂
             CardPile hand = PileType.Hand.GetPile(owner);
-            CardModel? leftmost = hand.Cards.FirstOrDefault();
-            if (leftmost != null)
+            CardModel? rightmost = hand.Cards.LastOrDefault();
+            if (rightmost != null)
             {
-                await CardCmd.TransformTo<Soul>(leftmost);
+                await CardCmd.TransformTo<Soul>(rightmost);
             }
         },
 
@@ -1223,6 +1280,10 @@ internal static class Reworks
 
         // 灰烬之灵：同上，原版读 BlockOnExhaust 会抛，整段替换成 2 → 1 费。
         [typeof(SpiritOfAsh)] = card => card.EnergyCost.UpgradeBy(-1),
+
+        // 哨卫模式：原版升级是降 1 费，我们现在敲前敲后都 1 费，
+        // 升级改成「生成的扫荡凝视是升级版」（见 SentryModePlus），所以这里把原版降费整个取消掉。
+        [typeof(SentryMode)] = _ => { },
         // 鞭打：原版升级会「灾厄 +3、抽牌 +1」，我们只要灾厄 15 → 21（+6）、转移 10 → 12（+2），抽牌固定 2 张
         [typeof(Scourge)] = card =>
         {
@@ -1353,6 +1414,9 @@ internal static class Reworks
 
         // 死者苏生：3 费 → 2 费（升级前后都是 2 费）
         [typeof(Reanimate)] = 2,
+
+        // 哨卫模式：2 费 → 1 费（升级前后都是 1 费，升级改成给升级版扫荡凝视）
+        [typeof(SentryMode)] = 1,
     };
 
     /// <summary>

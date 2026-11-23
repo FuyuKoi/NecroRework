@@ -1,5 +1,6 @@
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Cards;
+using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Entities.Powers;
 using MegaCrit.Sts2.Core.Hooks;
@@ -19,6 +20,14 @@ internal static class MelancholyCost
         PileType.Hand, PileType.Draw, PileType.Discard, PileType.Exhaust, PileType.Play,
     ];
 
+    /// <summary>
+    /// 「同一次施加」去重窗口（毫秒）。怪物一次行动里把同一个负面效果同时甩给玩家和奥斯提时，
+    /// 引擎会分两次回调 <c>Hook.AfterPowerAmountChanged</c>，这里按「同来源 + 同效果 + 同一个小窗口」合并成 1 次。
+    /// </summary>
+    private const long DedupeWindowMs = 400;
+
+    private static readonly System.Collections.Generic.Dictionary<(string PowerId, int ApplierId), long> RecentEvents = [];
+
     public static void Install(Harmony harmony)
     {
         var target = AccessTools.Method(typeof(Hook), "AfterPowerAmountChanged");
@@ -32,7 +41,7 @@ internal static class MelancholyCost
             postfix: new HarmonyMethod(typeof(MelancholyCost), nameof(AfterPowerAmountChangedPostfix)));
     }
 
-    private static void AfterPowerAmountChangedPostfix(PowerModel power, decimal amount)
+    private static void AfterPowerAmountChangedPostfix(PowerModel power, decimal amount, Creature applier)
     {
         try
         {
@@ -42,6 +51,19 @@ internal static class MelancholyCost
             var owner = power.Owner;
             var player = owner?.Player ?? owner?.PetOwner;
             if (player == null) return;
+
+            long now = unchecked((long)Godot.Time.GetTicksMsec());
+            int applierKey = applier?.CombatId is { } cid ? unchecked((int)cid) : -1;
+            var key = (power.Id.ToString(), applierKey);
+
+            if (RecentEvents.TryGetValue(key, out long last) && now - last <= DedupeWindowMs)
+            {
+                // 同一次施加事件的第二份（多半是奥斯提那一份），不重复降费。
+                RecentEvents[key] = now;
+                return;
+            }
+
+            RecentEvents[key] = now;
 
             foreach (var pileType in CombatPiles)
             {

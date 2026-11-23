@@ -106,6 +106,7 @@ internal static class OstyDoomDeath
 
 		List<Creature> doomed = combatState.GetCreaturesOnSide(CombatSide.Player)
 			.Where(c => c.IsAlive && c.CurrentHp <= DoomUtil.DoomOf(c))
+			.Where(c => !Powers.ReanimateWardPower.IsWarded(c))
 			.ToList();
 
 		if (doomed.Count == 0)

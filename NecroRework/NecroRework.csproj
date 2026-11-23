@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
@@ -50,6 +50,8 @@
     <None Include="continuation.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="ghost_lantern.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="overdraft.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="living_end.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="ominous_punch.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="all_is_void.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="death_rhythm.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="drift.png" CopyToOutputDirectory="PreserveNewest" />

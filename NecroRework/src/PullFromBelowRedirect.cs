@@ -1,8 +1,12 @@
 using HarmonyLib;
+using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
+using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.Hooks;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.ValueProps;
 using NecroRework.Powers;
 
 namespace NecroRework;
@@ -63,13 +67,18 @@ internal static class PullFromBelowRedirect
 
             Main.Log.Info($"[{Main.ModId}] 亡魂牵引已挂载：被动消耗虚无牌时改为自动打出");
 
-            // 诊断用：如果有人在没走 CardCmd.Exhaust 的情况下直接把牌塞进消耗堆，
-            // 上面那个前缀就不会执行。这里只记日志、不改变任何行为。
+            // 真正的拦截点：所有「把牌塞进消耗堆」的路径最后都走 CardPileCmd.Add(..., PileType.Exhaust, ...)，
+            // 包括回合结束时虚无牌自烧（实测它不经过 CardCmd.Exhaust）。
             var pileAdd = AccessTools.Method(typeof(CardPileCmd), "Add",
                 new[] { typeof(CardModel), typeof(PileType), typeof(CardPilePosition), typeof(AbstractModel), typeof(bool) });
             if (pileAdd != null)
             {
-                harmony.Patch(pileAdd, prefix: new HarmonyMethod(typeof(PullFromBelowRedirect), nameof(PileAddPrefix)));
+                harmony.Patch(pileAdd, prefix: new HarmonyMethod(typeof(PullFromBelowRedirect), nameof(ExhaustAddPrefix)));
+                Main.Log.Info($"[{Main.ModId}] 亡魂牵引：已在 CardPileCmd.Add 的消耗分支上挂载拦截");
+            }
+            else
+            {
+                Main.Log.Warn($"[{Main.ModId}] 找不到 CardPileCmd.Add，亡魂牵引只能在 CardCmd.Exhaust 上拦");
             }
         }
         catch (Exception e)
@@ -78,7 +87,15 @@ internal static class PullFromBelowRedirect
         }
     }
 
-    private static void OnPlayWrapperPrefix(CardModel __instance) => PlayingCards.Add(__instance);
+    private static void OnPlayWrapperPrefix(CardModel __instance)
+    {
+        PlayingCards.Add(__instance);
+        if (ReferenceEquals(__instance, _expectCard)) _expectCardPlayed = true;
+    }
+
+    /// <summary>这一发 AutoPlay 到底有没有真的把牌打出去（别的 mod 抢了 CardCmd.AutoPlay 就可能是 false）。</summary>
+    private static CardModel? _expectCard;
+    private static bool _expectCardPlayed;
 
     /// <summary>这张牌此刻正在被打出（= 主动出牌），供别的模块复用同一份判定。</summary>
     internal static bool IsBeingPlayed(CardModel card) => PlayingCards.Contains(card);
@@ -89,23 +106,89 @@ internal static class PullFromBelowRedirect
 
     private static int _pileTrace;
 
-    /// <summary>诊断：记录「绕过 CardCmd.Exhaust 直接进消耗堆」的情况。</summary>
-    private static bool PileAddPrefix(CardModel card, PileType newPileType)
+    /// <summary>
+    /// 所有「把牌送进消耗堆」的公共漏斗。回合结束时虚无牌自烧直接走这里
+    /// （不经过 CardCmd.Exhaust），所以在这一层拦截才能保证亡魂牵引一定生效。
+    /// </summary>
+    private static bool ExhaustAddPrefix(CardModel card, PileType newPileType, ref Task<CardPileAddResult> __result)
     {
         try
         {
-            if (newPileType != PileType.Exhaust || _pileTrace >= 30) return true;
+            if (newPileType != PileType.Exhaust) return true;
 
-            _pileTrace++;
-            var power = card.Owner?.Creature?.GetPower<PullFromBelowPower>();
-            Main.Log.Info($"[{Main.ModId}] 进消耗堆#{_pileTrace} {card.Id} 虚无={card.Keywords.Contains(CardKeyword.Ethereal)} 亡魂牵引={power?.Amount.ToString() ?? "无"} 经由=CardPileCmd.Add");
+            // 兜底：牌如果没登记在当前战斗里，进牌堆时会抛
+            // 「must be added to a CombatState」，整条回合循环会死（结束回合卡住）。
+            CombatCardGuard.EnsureRegistered(card, "消耗前兜底");
+
+            // 「飘荡」：只要这张牌真的被送进消耗堆，就给 4 点格挡。
+            // 原先挂在 CardCmd.Exhaust 上，但回合结束时虚无牌自烧不经过它
+            // （直接走 CardPileCmd.Add），所以看起来「飘荡不生效」。这里统一在漏斗上处理。
+            if (card.Enchantment is Enchantments.DriftEnchantment && card.Pile?.Type != PileType.Exhaust)
+            {
+                _ = GrantDriftBlock(card);
+            }
+
+            // 我们自己在自动打出时产生的消耗，直接放行（否则套娃）
+            if (_busy) return true;
+
+            var creature = card.Owner?.Creature;
+            if (creature == null || !creature.IsAlive) return true;
+
+            var power = creature.GetPower<PullFromBelowPower>();
+            bool ethereal = card.Keywords.Contains(CardKeyword.Ethereal);
+
+            if (_pileTrace < 40)
+            {
+                _pileTrace++;
+                Main.Log.Info($"[{Main.ModId}] 进消耗堆#{_pileTrace} {card.Id} 牌堆={card.Pile?.Type.ToString() ?? "无"} 虚无={ethereal} 正在打出={PlayingCards.Contains(card)} 亡魂牵引={power?.Amount.ToString() ?? "无"}");
+            }
+
+            if (!ethereal) return true;
+            if (PlayingCards.Contains(card)) return true;
+
+            var pile = card.Pile?.Type;
+            if (pile != PileType.Hand && pile != PileType.Draw && pile != PileType.Discard) return true;
+
+            if (power == null || power.Amount <= 0)
+            {
+                // 没被亡魂牵引改成自动打出 → 这张牌真的会被消耗掉，
+                // 记进「初心的被动消耗记录」（回合结束时虚无牌自烧只走这一层）。
+                PassiveExhaustLog.Record(card);
+                return true;
+            }
+
+            __result = RedirectAdd(card, power);
+            return false;
         }
-        catch
+        catch (Exception e)
         {
-            // 诊断代码本身不能影响游戏
+            Main.Log.Error($"[{Main.ModId}] 亡魂牵引拦截失败（放行原版消耗）: {e}");
+            return true;
         }
+    }
 
-        return true;
+    /// <summary>CardPileCmd.Add 的返回类型是 Task&lt;CardPileAddResult&gt;（不可空），拦截后返回 default。</summary>
+    private static async Task<CardPileAddResult> RedirectAdd(CardModel card, PullFromBelowPower power)
+    {
+        await Redirect(card, power);
+        return default!;
+    }
+
+    /// <summary>「飘荡」被消耗时的 4 点格挡。</summary>
+    private static async Task GrantDriftBlock(CardModel card)
+    {
+        try
+        {
+            Creature? owner = card.Owner?.Creature;
+            if (owner is not { IsAlive: true }) return;
+
+            Main.Log.Info($"[{Main.ModId}] 飘荡：{card.Id} 被消耗，获得 {Enchantments.DriftEnchantment.BlockOnExhaust} 点格挡");
+            await CreatureCmd.GainBlock(owner, Enchantments.DriftEnchantment.BlockOnExhaust, ValueProp.Unpowered, null);
+        }
+        catch (Exception e)
+        {
+            Main.Log.Error($"[{Main.ModId}] 飘荡格挡失败: {e}");
+        }
     }
 
     private static bool ExhaustPrefix(CardModel card, bool causedByEthereal, ref Task<CardPileAddResult?> __result)
@@ -127,7 +210,7 @@ internal static class PullFromBelowRedirect
             bool ethereal = card.Keywords.Contains(CardKeyword.Ethereal);
 
             // 前 60 次消耗决议全部记录（不只 buff 在场时），这样能确认这个补丁到底有没有被执行。
-            if (_traceCount < 60)
+            if (_traceCount < 200)
             {
                 _traceCount++;
                 Main.Log.Info($"[{Main.ModId}] 消耗决议#{_traceCount} {card.Id} 牌堆={card.Pile?.Type.ToString() ?? "无"} 虚无={ethereal} 回合结束自烧={causedByEthereal} 正在打出={PlayingCards.Contains(card)} 亡魂牵引={power?.Amount.ToString() ?? "无"}");
@@ -159,6 +242,52 @@ internal static class PullFromBelowRedirect
     }
 
     /// <summary>
+    /// 不经过 CardCmd.AutoPlay 的「自动打出」。复刻它最后那段流程：
+    /// 可打出判定 → 选目标 → BeforeCardAutoPlayed → OnPlayWrapper。
+    /// 这样即使有别的 mod 在 AutoPlay 上挂了会短路的前缀，亡魂牵引照样能生效。
+    /// </summary>
+    private static async Task PlayWithoutAutoPlay(CardModel card)
+    {
+        var ctx = new ThrowingPlayerChoiceContext();
+        var owner = card.Owner;
+        ICombatState? state = card.CombatState ?? owner?.Creature?.CombatState;
+        if (state == null || owner?.Creature == null || owner.Creature.IsDead) return;
+
+        if (CombatManager.Instance.IsOverOrEnding
+            || card.Keywords.Contains(CardKeyword.Unplayable)
+            || !Hook.ShouldPlay(state, card, out _, AutoPlayType.Default))
+        {
+            await CardPileCmd.Add(card, PileType.Play);
+            await card.MoveToResultPileWithoutPlaying(ctx);
+            return;
+        }
+
+        Creature? target = null;
+        if (card.TargetType == TargetType.AnyEnemy)
+        {
+            target = owner.RunState.Rng.CombatTargets.NextItem(state.HittableEnemies);
+            if (target == null)
+            {
+                await CardPileCmd.Add(card, PileType.Play);
+                await card.MoveToResultPileWithoutPlaying(ctx);
+                return;
+            }
+        }
+
+        await Hook.BeforeCardAutoPlayed(state, card, target, AutoPlayType.Default);
+
+        var resources = new ResourceInfo
+        {
+            EnergySpent = 0,
+            EnergyValue = card.EnergyCost.GetAmountToSpend(),
+            StarsSpent = 0,
+            StarValue = Math.Max(0, card.GetStarCostWithModifiers()),
+        };
+
+        await card.OnPlayWrapper(ctx, target, isAutoPlay: true, resources);
+    }
+
+    /// <summary>
     /// 自动打出结束后，保证技能/攻击牌落在弃牌堆里。
     /// 能力牌不在此列：它和手动打出时一样只生效、不留在任何牌堆里。
     /// </summary>
@@ -176,6 +305,12 @@ internal static class PullFromBelowRedirect
             Main.Log.Info($"[{Main.ModId}] 亡魂牵引：{card.Id} 自动打出结束，牌堆 = {pile?.ToString() ?? "无"}");
 
             if (pile == PileType.Discard)
+            {
+                return;
+            }
+
+            // 牌本身带「消耗」：引擎把它送进消耗堆是正确结果，别再抢回弃牌堆
+            if (pile == PileType.Exhaust)
             {
                 return;
             }
@@ -201,7 +336,20 @@ internal static class PullFromBelowRedirect
             Main.Log.Info($"[{Main.ModId}] 亡魂牵引：{card.Id} 改为自动打出");
 
             power.FlashNow();
+
+            _expectCard = card;
+            _expectCardPlayed = false;
             await CardCmd.AutoPlay(new ThrowingPlayerChoiceContext(), card, null);
+            bool played = _expectCardPlayed;
+            _expectCard = null;
+
+            // 别的 mod（RitsuLib / BaseLib 都给 CardCmd.AutoPlay 挂了前缀）可能把这一发跳过。
+            // 那就自己按「打出这张牌」的最小流程再走一遍，保证亡魂牵引不依赖 AutoPlay。
+            if (!played || card.Pile?.Type == PileType.Play)
+            {
+                Main.Log.Warn($"[{Main.ModId}] 亡魂牵引：{card.Id} 的 CardCmd.AutoPlay 被别的补丁跳过，改走自建打出流程");
+                await PlayWithoutAutoPlay(card);
+            }
 
             // 能力牌被打出后，引擎默认把它从战斗里摘掉（结果堆是 None），
             // 所以这里补一次：只要它还没进弃牌堆，就手动放进去。

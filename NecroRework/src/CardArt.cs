@@ -1,16 +1,17 @@
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Nodes.Cards;
 using NecroRework.Cards;
 
 namespace NecroRework;
 
 /// <summary>
 /// 给自制卡牌换上自己的卡图。
-/// 卡面贴图走 CardModel.Portrait（非虚属性，内部是 ResourceLoader.Load(res://...tres)），
-/// 所以这里用 Harmony 前缀直接返回我们自己的贴图：
-///  - 有专属卡图的卡：从 mod 目录读进来的 PNG；
-///  - 还没有卡图的卡：游戏自带的 beta 占位图（CardModel.MissingPortraitPath）。
+/// 两条路同时挂：
+///  1) CardModel.Portrait 前缀（理想路径，但如果别的 mod 也补了这个 getter，可能轮不到我们）；
+///  2) NCard.UpdatePortrait 后置（保险路径：卡牌节点画完之后，直接把贴图盖上去，
+///     不管模型那条链上被谁接管都能生效）。
 /// </summary>
 internal static class CardArt
 {
@@ -27,12 +28,14 @@ internal static class CardArt
         [typeof(Continuation)] = "continuation.png",
         [typeof(GhostLantern)] = "ghost_lantern.png",
         [typeof(Overdraft)] = "overdraft.png",
+        [typeof(LivingEnd)] = "living_end.png",
+        [typeof(OminousPunch)] = "ominous_punch.png",
         [typeof(AllIsVoid)] = "all_is_void.png",
     };
 
     private static Texture2D _placeholder;
 
-    private static int _traceCount;
+    private static readonly HashSet<Type> Warned = new();
 
     public static void Install(Harmony harmony)
     {
@@ -41,12 +44,25 @@ internal static class CardArt
             var getter = AccessTools.PropertyGetter(typeof(CardModel), "Portrait");
             if (getter == null)
             {
-                Main.Log.Warn($"[{Main.ModId}] 找不到 CardModel.Portrait，跳过卡图替换");
-                return;
+                Main.Log.Warn($"[{Main.ModId}] 找不到 CardModel.Portrait，跳过模型层卡图替换");
+            }
+            else
+            {
+                harmony.Patch(getter, prefix: new HarmonyMethod(AccessTools.Method(typeof(CardArt), nameof(PortraitPrefix))));
             }
 
-            harmony.Patch(getter, prefix: new HarmonyMethod(AccessTools.Method(typeof(CardArt), nameof(PortraitPrefix))));
-            Main.Log.Info($"[{Main.ModId}] 卡图替换已挂载");
+            // 保险路径：卡牌节点自己画完之后再盖一次贴图。
+            var update = AccessTools.Method(typeof(NCard), "UpdatePortrait");
+            if (update == null)
+            {
+                Main.Log.Warn($"[{Main.ModId}] 找不到 NCard.UpdatePortrait，跳过节点层卡图替换");
+            }
+            else
+            {
+                harmony.Patch(update, postfix: new HarmonyMethod(AccessTools.Method(typeof(CardArt), nameof(UpdatePortraitPostfix))));
+            }
+
+            Main.Log.Info($"[{Main.ModId}] 卡图替换已挂载（模型层 {getter != null} / 节点层 {update != null}）");
         }
         catch (Exception e)
         {
@@ -59,45 +75,13 @@ internal static class CardArt
     {
         try
         {
-            Type type = __instance.GetType();
-            bool known = Files.ContainsKey(type) || UsesPlaceholder(__instance);
+            Texture2D texture = Resolve(__instance, out bool handled);
+            if (!handled) return true;
 
-            if (known && _traceCount < 20)
+            if (texture != null)
             {
-                _traceCount++;
-                Main.Log.Info($"[{Main.ModId}] 卡图#{_traceCount} 请求 {type.Name}（有映射={Files.ContainsKey(type)}）");
-            }
-
-            if (Files.TryGetValue(type, out string fileName))
-            {
-                if (!Cache.TryGetValue(type, out Texture2D texture))
-                {
-                    texture = Load(fileName);
-                    Cache[type] = texture;
-                    Main.Log.Info($"[{Main.ModId}] 卡图 {type.Name} <- {fileName}：{(texture == null ? "读取失败，回退原版" : "已载入")}");
-                }
-
-                if (texture != null)
-                {
-                    __result = texture;
-                    return false;
-                }
-            }
-            else if (type.Assembly == typeof(CardArt).Assembly)
-            {
-                Main.Log.Warn($"[{Main.ModId}] 卡图 {type.Name} 没有映射，走占位/原版逻辑");
-            }
-
-            if (UsesPlaceholder(__instance))
-            {
-                _placeholder ??= ResourceLoader.Load<Texture2D>(
-                    CardModel.MissingPortraitPath, null, ResourceLoader.CacheMode.Reuse);
-
-                if (_placeholder != null)
-                {
-                    __result = _placeholder;
-                    return false;
-                }
+                __result = texture;
+                return false;
             }
         }
         catch (Exception e)
@@ -108,9 +92,61 @@ internal static class CardArt
         return true;
     }
 
+    /// <summary>节点画完之后，把我们的贴图盖上去。</summary>
+    private static void UpdatePortraitPostfix(NCard __instance)
+    {
+        try
+        {
+            CardModel model = __instance.Model;
+            if (model == null) return;
+
+            Texture2D texture = Resolve(model, out bool handled);
+            if (handled && texture != null)
+            {
+                __instance.SetPortraitTexture(texture);
+            }
+        }
+        catch (Exception e)
+        {
+            Main.Log.Error($"[{Main.ModId}] 卡图覆盖失败: {e}");
+        }
+    }
+
+    /// <summary>
+    /// 取这张卡要用的贴图。
+    /// handled=false 表示这张卡不归我们管（交回原版）；
+    /// handled=true 且 texture 为 null 表示该管但读不到文件（回退原版）。
+    /// </summary>
+    private static Texture2D Resolve(CardModel card, out bool handled)
+    {
+        handled = false;
+        Type type = card.GetType();
+
+        if (Files.TryGetValue(type, out string fileName))
+        {
+            handled = true;
+            if (Cache.TryGetValue(type, out Texture2D cached)) return cached;
+
+            Texture2D loaded = Load(fileName);
+            Cache[type] = loaded;
+            Main.Log.Info($"[{Main.ModId}] 卡图 {type.Name} <- {fileName}：{(loaded == null ? "读取失败，回退原版" : "已载入")}");
+            return loaded;
+        }
+
+        if (UsesPlaceholder(card))
+        {
+            handled = true;
+            _placeholder ??= ResourceLoader.Load<Texture2D>(
+                CardModel.MissingPortraitPath, null, ResourceLoader.CacheMode.Reuse);
+            return _placeholder;
+        }
+
+        return null;
+    }
+
     /// <summary>还没有专属卡图的新卡，统一用游戏自带的 beta 占位图。</summary>
     private static bool UsesPlaceholder(CardModel card) =>
-        card is FleetingLife or Continuation or Drag or OminousPunch or Cover or Sublimation or LifeAndDeath or BeginnerMind or Mend or Gaze;
+        card is FleetingLife or Continuation or Drag or Cover or Sublimation or LifeAndDeath or BeginnerMind or Mend or Gaze or SoulGather or Forsake or GraveFriend or SoulBarrier or RiverOfOblivion or WorldBurden or TurnToDust or RebornAnew;
 
     private static Texture2D Load(string fileName)
     {

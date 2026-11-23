@@ -169,6 +169,12 @@ internal static class PatchInstaller
 
         // 卡牌大全网格守卫（原版网格在只剩一行时会越界，导致图鉴显示不全）
         Safe("卡牌大全网格守卫", () => CardGridGuard.Install(harmony));
+        Safe("动态变量保险丝", () => DynamicVarSafety.Install(harmony));
+        Safe("哨卫模式强化", () => SentryModePlus.Install(harmony));
+
+        // 死者苏生护佑：护佑期间任何人都不死（Kill 层兜底，避免 0 血却不死导致反复处死卡住）
+        Safe("死者苏生护佑", () => NecroRework.Powers.ReanimateWardPower.Install(harmony));
+        Safe("费用预览还原", () => CostPreview.Install(harmony));
 
         Main.Log.Info($"[{Main.ModId}] 已挂载 {Reworks.Vars.Count} 个数值改写 / {Reworks.Play.Count} 个效果改写 / {Reworks.Upgrade.Count} 个升级补充 / {Reworks.UpgradeReplace.Count} 个升级替换 / {Reworks.Costs.Count} 个费用改写 / {Reworks.Keywords.Count} 个关键词改写 / {Reworks.Tips.Count} 个提示改写");
 

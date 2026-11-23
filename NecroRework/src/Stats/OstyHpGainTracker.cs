@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -56,6 +56,22 @@ internal static class OstyHpGainTracker
                 postfix: new HarmonyMethod(typeof(OstyHpGainTracker), nameof(BeforeSideTurnStartPostfix)));
         }
 
+        // 每场战斗开始时把账本清空：上一场战斗的累计不能带进新战斗。
+        // （必须在「战斗开始时召唤」之前清，所以我们挂在 BeforeCombatStart 上。）
+        var combatStart = AccessTools.Method(typeof(Hook), "BeforeCombatStart");
+
+        if (combatStart == null)
+        {
+            Main.Log.Warn($"[{Main.ModId}] 找不到 Hook.BeforeCombatStart，奥斯提回血量可能跨战斗累积");
+        }
+        else
+        {
+            // 用 prefix：必须在「战斗开始时召唤」那些监听者之前清，
+            // 否则它们刚加的血会被我们抹掉。
+            harmony.Patch(combatStart,
+                prefix: new HarmonyMethod(typeof(OstyHpGainTracker), nameof(BeforeCombatStartPrefix)));
+        }
+
         // 旧写法（回合开始遗物结算之后才清零，会把自动召唤加的血抹掉），已停用：
         // var legacyTurnStart = AccessTools.Method(typeof(Hook), "AfterPlayerTurnStart");
         // if (legacyTurnStart != null)
@@ -104,8 +120,30 @@ internal static class OstyHpGainTracker
     private static void BeforeSideTurnStartPostfix(MegaCrit.Sts2.Core.Combat.CombatSide side)
     {
         // 玩家回合刚开始（此时遗物/开场效果还没结算）：把上一回合的累计清掉。
+        //
+        // 但每场战斗的第一个玩家回合要跳过清理 —— 开头那些「战斗开始时召唤」
+        // （缚魂命匣 / 无界命匣的 BeforeCombatStart 召唤）已经先把奥斯提血量加上去了，
+        // 那是第一回合就吃到增生的操作，不能被清掉。
         if (side != MegaCrit.Sts2.Core.Combat.CombatSide.Player) return;
+
+        if (!_keptFirstTurn)
+        {
+            _keptFirstTurn = true;
+            return;
+        }
+
         Gained.Clear();
+    }
+
+    /// <summary>本场战斗的第一个玩家回合是否已经「保留」过（不清零）。</summary>
+    private static bool _keptFirstTurn;
+
+    private static void BeforeCombatStartPrefix()
+    {
+        // 新一场战斗：场上血量记录换了一套，全部重新开始。
+        Gained.Clear();
+        PreHealHp.Clear();
+        _keptFirstTurn = false;
     }
 
     private static void AfterPlayerTurnStartPostfix(Player player)

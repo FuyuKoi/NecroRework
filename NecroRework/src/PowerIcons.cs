@@ -3,6 +3,7 @@ using HarmonyLib;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.Models.Relics;
+using MegaCrit.Sts2.Core.Nodes.Combat;
 using NecroRework.Powers;
 
 namespace NecroRework;
@@ -54,6 +55,122 @@ internal static class PowerIcons
         {
             harmony.Patch(bigIconGetter, postfix: new HarmonyMethod(typeof(PowerIcons), nameof(BigIconPostfix)));
         }
+
+        InstallNodeFallback(harmony);
+    }
+
+    /// <summary>
+    /// 节点层兜底：有的 mod（RitsuLib / BaseLib / Act4Heart）也补了
+    /// PowerModel.PackedIconPath / Icon，会把我们的前缀短路掉。
+    /// 所以在能力图标节点 NPower.Reload 之后直接把贴图塞进 _icon / _powerFlash。
+    /// </summary>
+    private static void InstallNodeFallback(Harmony harmony)
+    {
+        try
+        {
+            var reload = AccessTools.Method(typeof(NPower), "Reload", Type.EmptyTypes);
+            if (reload == null)
+            {
+                Main.Log.Warn($"[{Main.ModId}] 找不到 NPower.Reload，能力图标只有模型层重定向");
+                return;
+            }
+
+            harmony.Patch(reload, postfix: new HarmonyMethod(typeof(PowerIcons), nameof(ReloadPostfix)));
+            Main.Log.Info($"[{Main.ModId}] 能力图标节点层兜底已挂载");
+        }
+        catch (Exception e)
+        {
+            Main.Log.Error($"[{Main.ModId}] 能力图标节点层兜底挂载失败: {e}");
+        }
+    }
+
+    private static AccessTools.FieldRef<NPower, TextureRect>? _iconField;
+    private static AccessTools.FieldRef<NPower, CpuParticles2D>? _flashField;
+    private static bool _reloadErrorLogged;
+
+    private static void ReloadPostfix(NPower __instance)
+    {
+        try
+        {
+            var model = __instance.Model;
+            if (model == null) return;
+
+            var icon = ResolveIcon(model);
+            if (icon == null) return;
+
+            _iconField ??= AccessTools.FieldRefAccess<NPower, TextureRect>("_icon");
+            var rect = _iconField(__instance);
+            if (rect != null && rect.Texture != icon) rect.Texture = icon;
+
+            var big = ResolveBigIcon(model);
+            if (big == null) return;
+
+            _flashField ??= AccessTools.FieldRefAccess<NPower, CpuParticles2D>("_powerFlash");
+            var flash = _flashField(__instance);
+            if (flash != null && flash.Texture != big) flash.Texture = big;
+        }
+        catch (Exception e)
+        {
+            if (_reloadErrorLogged) return;
+            _reloadErrorLogged = true;
+            Main.Log.Error($"[{Main.ModId}] 能力图标节点层兜底失败（后续不再记录）: {e}");
+        }
+    }
+
+    /// <summary>自制能力 → 借用的原版能力实例；不是我们的能力就返回 null。</summary>
+    private static PowerModel? VanillaPowerFor(PowerModel power) => power switch
+    {
+        DoomWardPower => ModelDb.Power<ArtifactPower>(),
+        OstyGuardPower => ModelDb.Power<DieForYouPower>(),
+        SpilloverPower => ModelDb.Power<DoomPower>(),
+        EnergyCarryPower => ModelDb.Power<EnergyNextTurnPower>(),
+        PullFromBelowPower => ModelDb.Power<HauntPower>(),
+        RelentlessPower => ModelDb.Power<SicEmPower>(),
+        CountdownReworkPower => ModelDb.Power<CountdownPower>(),
+        GhostLanternPower => ModelDb.Power<SpiritOfAshPower>(),
+        CaptureSpiritStrengthDownPower => ModelDb.Power<MonarchsGazeStrengthDownPower>(),
+        SharedFatePower => ModelDb.Power<StrengthPower>(),
+        BeginnerMindPower => ModelDb.Power<CallOfTheVoidPower>(),
+        DevourLifeReworkPower => ModelDb.Power<DevourLifePower>(),
+        SpiritOfAshReworkPower => ModelDb.Power<SpiritOfAshPower>(),
+        FleetingLifePower => ModelDb.Power<IntangiblePower>(),
+        NecroMasteryGuardPower => ModelDb.Power<NecroMasteryPower>(),
+        ReanimateWardPower => ModelDb.Power<IntangiblePower>(),
+        SoulGatherPower => ModelDb.Power<ChainsOfBindingPower>(),
+        RiverOfOblivionPower => ModelDb.Power<IntangiblePower>(),
+        WorldBurdenPower => ModelDb.Power<DieForYouPower>(),
+        DeathRhythmPower => null,
+        _ => null,
+    };
+
+    private static Texture2D? ResolveIcon(PowerModel power)
+    {
+        switch (power)
+        {
+            case DieForYouPower:
+                return LoadDieForYouIcon();
+            case DeathRhythmPower:
+                return LoadCustomIcon(DeathRhythmIconFile, ref _deathRhythmIcon, ref _deathRhythmIconTried, "死亡律动");
+            case SicEmCounterPower:
+                return ModelDb.Relic<FakeSneckoEye>().Icon;
+        }
+
+        return VanillaPowerFor(power)?.Icon;
+    }
+
+    private static Texture2D? ResolveBigIcon(PowerModel power)
+    {
+        switch (power)
+        {
+            case DieForYouPower:
+                return LoadDieForYouIcon();
+            case DeathRhythmPower:
+                return LoadCustomIcon(DeathRhythmIconFile, ref _deathRhythmIcon, ref _deathRhythmIconTried, "死亡律动");
+            case SicEmCounterPower:
+                return ModelDb.Relic<FakeSneckoEye>().BigIcon;
+        }
+
+        return VanillaPowerFor(power)?.BigIcon;
     }
 
     public static void PackedIconPathPostfix(object __instance, ref string __result)
@@ -121,6 +238,26 @@ internal static class PowerIcons
                 case ReanimateWardPower:
                     // 死者苏生的免伤护佑，借用「无实体」图标
                     __result = ModelDb.Power<IntangiblePower>().PackedIconPath;
+                    break;
+
+                case SoulGatherPower:
+                    // 聚魂术：借用「缚魂」的图标
+                    __result = ModelDb.Power<ChainsOfBindingPower>().PackedIconPath;
+                    break;
+
+                case RiverOfOblivionPower:
+                    // 相忘于川：借用「无实体」图标
+                    __result = ModelDb.Power<IntangiblePower>().PackedIconPath;
+                    break;
+
+                case WorldBurdenPower:
+                    // 负世：和「为你而死」共用图标
+                    __result = ModelDb.Power<DieForYouPower>().PackedIconPath;
+                    break;
+
+                case TurnToDustPower:
+                    // 化作尘泥：借「壁垒」的图标（都跟格挡有关）
+                    __result = ModelDb.Power<BarricadePower>().PackedIconPath;
                     break;
             }
         }
