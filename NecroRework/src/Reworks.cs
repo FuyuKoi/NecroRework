@@ -1,9 +1,10 @@
-﻿using MegaCrit.Sts2.Core.CardSelection;
+using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Combat.History.Entries;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.Entities.Powers;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Factories;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
@@ -86,8 +87,38 @@ internal static class Reworks
             new CalculationBaseVar(0m),
             new CalculationExtraVar(1m),
             new CalculatedHitCountVar("CalculatedHits").WithMultiplier(
-                (CardModel card, Creature? _) => 1 + OstyDamageTracker.TotalFor(card.Owner) / HitsPerFifteen)
+                (CardModel card, Creature? _) => RattleHits(card))
         ],
+
+        // 播种：8（11）→ 9（12）
+        [typeof(Sow)] = _ => [new DamageVar(9m, ValueProp.Move)],
+
+        // 恐惧：7 伤害 / 1 易伤 → 8 / 2（升级仍各 +1 → 9 / 3）
+        [typeof(Fear)] = _ => [new DamageVar(8m, ValueProp.Move), new PowerVar<VulnerablePower>(2m)],
+
+        // 埋葬：52（63）→ 59（70）
+        [typeof(Bury)] = _ => [new DamageVar(59m, ValueProp.Move)],
+
+        // 死亡行军：基础 8 → 10（升级 +1 → 11），每抽一张的额外伤害 4 → 5（升级 +2 → 7）
+        [typeof(DeathMarch)] = _ =>
+        [
+            new CalculationBaseVar(10m),
+            new ExtraDamageVar(5m),
+            new CalculatedDamageVar(ValueProp.Move).WithMultiplier(
+                (CardModel card, Creature? _) => card.IsCanonical
+                    ? 0
+                    : CombatManager.Instance.History.Entries
+                        .OfType<CardDrawnEntry>()
+                        .Count((CardDrawnEntry e) =>
+                            e.HappenedThisTurn(card.CombatState) && e.Actor == card.Owner.Creature && !e.FromHandDraw))
+        ],
+
+        // 吞噬生命：每回合每打出 2 张灵魂，获得「层数」点费用
+        // Energy 只用于卡面文案里的能量图标（{Energy:energyIcons()}），数值固定 1，实际给费按能力层数
+        [typeof(DevourLife)] = _ => [new PowerVar<DevourLifeReworkPower>(1m), new EnergyVar(1)],
+
+        // 灰烬之灵：每张虚无 5 格挡、回合开始附魔飘荡（数值写死，升级改成降费）
+        [typeof(SpiritOfAsh)] = _ => Array.Empty<DynamicVar>(),
 
         // 鬼火：获得 1 费 → 获得 2 费（消耗、升级给保留都不变）
         [typeof(Wisp)] = _ => [new EnergyVar(2)],
@@ -133,8 +164,10 @@ internal static class Reworks
             new CalculationBaseVar(0m),
             new CalculationExtraVar(1m),
             new CalculatedHitCountVar("CalculatedHits").WithMultiplier((CardModel card, Creature _) =>
-                CombatManager.Instance.History.Entries.OfType<CardPlayFinishedEntry>()
-                    .Count(e => e.CardPlay.Player == card.Owner && e.WasEthereal))
+                card.IsCanonical
+                    ? 0
+                    : CombatManager.Instance.History.Entries.OfType<CardPlayFinishedEntry>()
+                        .Count(e => e.CardPlay.Player == card.Owner && e.WasEthereal))
         ],
 
         // 忧郁：格挡 13（升级 17）→ 12（升级 16）；降费条件换成「你或奥斯提获得负面效果」
@@ -211,6 +244,24 @@ internal static class Reworks
             new CalculatedDamageVar(ValueProp.Move)
                 .WithMultiplier((CardModel card, Creature _) => SoulStormFuel(card))
         ],
+
+        // 苦难：改成技能后不再造成伤害，只施加 1 层虚弱（升级 2 层）
+        [typeof(Misery)] = _ => [new PowerVar<WeakPower>(1m)],
+
+        // 吊杀：伤害 10 → 11（升级 13）
+        [typeof(Hang)] = _ => [new DamageVar(11m, ValueProp.Move)],
+
+        // 精神过载：每回合对自己施加的灾厄 3 → 5（升级仍只加费用）
+        [typeof(Neurosurge)] = _ => [new PowerVar<NeurosurgePower>(5m), new EnergyVar(3), new CardsVar(2)],
+
+        // 女妖之嚎：伤害 33 → 36（升级仍只降费）
+        [typeof(BansheesCry)] = _ => [new DamageVar(36m, ValueProp.Move), new EnergyVar(2)],
+
+        // 骸骨军团：所有玩家召唤 8（11）
+        [typeof(LegionOfBone)] = _ => [new SummonVar(8m)],
+
+        // 死者苏生：召唤 20 → 10（升级 15），并新增「本回合免伤 + 不死于灾厄」
+        [typeof(Reanimate)] = _ => [new SummonVar(10m)],
     };
 
     /// <summary>猛晃：奥斯提每累计这么多伤害，就多打一次。</summary>
@@ -220,11 +271,51 @@ internal static class Reworks
     private const decimal EmpoweredBoneShardsHp = 24m;
 
     /// <summary>
+    /// 猛晃的段数：1 + 本场战斗中奥斯提累计造成的伤害 / 15。
+    /// 图鉴等「没有战斗状态」的场合（Owner 没有 PlayerCombatState）一律按 1 段算，
+    /// 免得在百科里取不到数据导致界面卡死。
+    /// </summary>
+    private static int RattleHits(CardModel card)
+    {
+        try
+        {
+            // 百科里拿到的是 canonical 模型，没有 Owner，必须提前短路
+            if (card.IsCanonical)
+            {
+                return 1;
+            }
+
+            if (card.Owner?.PlayerCombatState == null)
+            {
+                return 1;
+            }
+
+            int total = OstyDamageTracker.TotalFor(card.Owner);
+            if (total <= 0)
+            {
+                return 1;
+            }
+
+            return 1 + total / HitsPerFifteen;
+        }
+        catch (Exception)
+        {
+            return 1;
+        }
+    }
+
+    /// <summary>
     /// 牺牲：奥斯提失去的生命值（也就是你获得的格挡）= 它当前生命值的 75%，向下取整。
     /// 取整方向决定它永远杀不死自己（1 血时失去 0 点）。
     /// </summary>
     private static decimal SacrificeBlockFrom(CardModel card)
     {
+        // 百科里拿到的是 canonical 模型，没有 Owner，必须提前短路
+        if (card.IsCanonical)
+        {
+            return 0m;
+        }
+
         if (!card.Owner.IsOstyAlive)
         {
             return 0m;
@@ -244,6 +335,12 @@ internal static class Reworks
     /// </summary>
     private static int SoulStormFuel(CardModel card)
     {
+        // 百科里拿到的是 canonical 模型，没有 Owner，必须提前短路
+        if (card.IsCanonical)
+        {
+            return 0;
+        }
+
         var pile = card.Owner?.PlayerCombatState?.ExhaustPile;
         if (pile is null)
         {
@@ -663,6 +760,20 @@ internal static class Reworks
                 card.DynamicVars["StrengthLoss"].BaseValue, card.Owner.Creature, card);
         },
 
+        // 吞噬生命：挂上「每 2 张灵魂给费」的能力（重复打出会叠层）
+        [typeof(DevourLife)] = async (card, ctx, play) =>
+        {
+            await CreatureCmd.TriggerAnim(card.Owner.Creature, "PowerUp", card.Owner.Character.PowerUpAnimDelay);
+            await PowerCmd.Apply<DevourLifeReworkPower>(ctx, card.Owner.Creature, 1m, card.Owner.Creature, card);
+        },
+
+        // 灰烬之灵：挂上「虚无牌起防 + 回合开始附魔飘荡」的能力
+        [typeof(SpiritOfAsh)] = async (card, ctx, play) =>
+        {
+            await CreatureCmd.TriggerAnim(card.Owner.Creature, "PowerUp", card.Owner.Character.PowerUpAnimDelay);
+            await PowerCmd.Apply<SpiritOfAshReworkPower>(ctx, card.Owner.Creature, 1m, card.Owner.Creature, card);
+        },
+
         // 扫荡凝视：对所有敌人造成 5（8）点伤害两次
         [typeof(SweepingGaze)] = async (card, ctx, play) =>
         {
@@ -884,6 +995,191 @@ internal static class Reworks
 
             CardCmd.PreviewCardPileAdd(await CardPileCmd.AddGeneratedCardToCombat(chosen, PileType.Hand, card.Owner));
         },
+
+        // 苦难：先给目标 1 层虚弱，再把它身上的所有负面效果复制给其他敌人。
+        [typeof(Misery)] = async (card, ctx, play) =>
+        {
+            if (play.Target is not { } target) return;
+
+            await CreatureCmd.TriggerAnim(card.Owner.Creature, "Cast", card.Owner.Character.CastAnimDelay);
+            await PowerCmd.Apply<WeakPower>(ctx, target, card.DynamicVars.Weak.BaseValue, card.Owner.Creature, card);
+
+            // 原版的「把目标的减益复制给其他敌人」，去掉了伤害那一段
+            var debuffAmounts = (from p in target.Powers
+                                 where p.TypeForCurrentAmount == PowerType.Debuff
+                                 select (Power: (PowerModel)p.ClonePreservingMutability(), p.Amount))
+                .ToDictionary(x => x.Power, x => x.Amount);
+
+            foreach (var kv in debuffAmounts.ToList())
+            {
+                if (kv.Key is ITemporaryPower temporary)
+                {
+                    var basePower = debuffAmounts.FirstOrDefault(p => p.Key.Id == temporary.InternallyAppliedPower.Id);
+                    if (basePower.Key != null)
+                    {
+                        debuffAmounts[basePower.Key] += kv.Value;
+                    }
+                }
+            }
+
+            foreach (Creature enemy in card.CombatState.HittableEnemies)
+            {
+                if (enemy == target) continue;
+
+                foreach (var kv in debuffAmounts)
+                {
+                    if (kv.Value == 0) continue;
+
+                    PowerModel? existing = PowerCmd.FindExistingInstanceForStacking(kv.Key, enemy, kv.Key.Applier);
+                    if (existing != null)
+                    {
+                        await PowerCmd.ModifyAmount(ctx, existing, kv.Value, kv.Key.Applier, card);
+                        continue;
+                    }
+
+                    var clone = (PowerModel)kv.Key.ClonePreservingMutability();
+                    await PowerCmd.Apply(ctx, clone, enemy, kv.Value, kv.Key.Applier, card);
+                }
+            }
+        },
+
+        // 大限已至：伤害 = 目标的灾厄层数；目标没有灾厄时，改给它 15 层精神过载。
+        [typeof(TimesUp)] = async (card, ctx, play) =>
+        {
+            if (play.Target is not { } target) return;
+
+            await DamageCmd.Attack(card.DynamicVars.CalculatedDamage)
+                .FromCard(card, play)
+                .Targeting(target)
+                .WithHitFx("vfx/vfx_attack_slash")
+                .Execute(ctx);
+
+            if (target.IsAlive && DoomUtil.DoomOf(target) <= 0)
+            {
+                await PowerCmd.Apply<NeurosurgePower>(ctx, target, 15m, card.Owner.Creature, card);
+            }
+        },
+
+        // 吊杀：先给 1 层虚弱，再造成伤害并叠「吊杀」翻倍层数。
+        [typeof(Hang)] = async (card, ctx, play) =>
+        {
+            if (play.Target is not { } target) return;
+
+            await PowerCmd.Apply<WeakPower>(ctx, target, 1m, card.Owner.Creature, card);
+
+            await DamageCmd.Attack(card.DynamicVars.Damage.BaseValue)
+                .FromCard(card, play)
+                .Targeting(target)
+                .WithHitFx("vfx/vfx_attack_slash")
+                .Execute(ctx);
+
+            if (!target.IsAlive) return;
+
+            int existing = target.GetPowerAmount<HangPower>();
+            int add = Math.Max(2, existing);
+            if (existing + add > 999999999)
+            {
+                add = Math.Max(0, 999999999 - existing);
+            }
+
+            await PowerCmd.Apply<HangPower>(ctx, target, add, card.Owner.Creature, card);
+        },
+
+        // 幻景：从消耗牌堆里任选任意张「虚无」牌打出（选择顺序即打出顺序）。
+        [typeof(Eidolon)] = async (card, ctx, play) =>
+        {
+            await CreatureCmd.TriggerAnim(card.Owner.Creature, "Cast", card.Owner.Character.CastAnimDelay);
+
+            CardPile? exhaustPile = PileType.Exhaust.GetPile(card.Owner);
+            if (exhaustPile is null || exhaustPile.Cards.Count == 0) return;
+
+            List<CardModel> candidates = exhaustPile.Cards
+                .Where(c => c.Keywords.Contains(CardKeyword.Ethereal) && !c.Keywords.Contains(CardKeyword.Unplayable))
+                .ToList();
+            if (candidates.Count == 0) return;
+
+            IEnumerable<CardModel> picked = await CardSelectCmd.FromCombatPile(
+                ctx,
+                exhaustPile,
+                card.Owner,
+                new CardSelectorPrefs(new LocString("cards", "EIDOLON.selectionScreenPrompt"), 0, candidates.Count),
+                c => c.Keywords.Contains(CardKeyword.Ethereal) && !c.Keywords.Contains(CardKeyword.Unplayable));
+
+            foreach (CardModel pick in picked.ToList())
+            {
+                if (pick.Pile?.Type != PileType.Exhaust) continue;
+                await CardCmd.AutoPlay(ctx, pick, null);
+            }
+        },
+
+        // 切断：伤害 13（升级 18）不变，升级后生成的灵魂全部变成「灵魂+」
+        [typeof(Severance)] = async (card, ctx, play) =>
+        {
+            if (play.Target is not { } target) return;
+
+            await DamageCmd.Attack(card.DynamicVars.Damage.BaseValue)
+                .FromCard(card, play)
+                .Targeting(target)
+                .WithHitFx("vfx/vfx_attack_slash")
+                .Execute(ctx);
+
+            List<Soul> souls = Soul.Create(card.Owner, 3, card.CombatState).ToList();
+
+            if (card.IsUpgraded)
+            {
+                foreach (Soul soul in souls)
+                {
+                    soul.UpgradeInternal();
+                }
+            }
+
+            CardPileAddResult drawResult = await CardPileCmd.AddGeneratedCardToCombat(souls[0], PileType.Draw, card.Owner, CardPilePosition.Random);
+            CardPileAddResult discardResult = await CardPileCmd.AddGeneratedCardToCombat(souls[1], PileType.Discard, card.Owner);
+            await CardPileCmd.AddGeneratedCardToCombat(souls[2], PileType.Hand, card.Owner);
+            CardCmd.PreviewCardPileAdd([drawResult, discardResult]);
+        },
+
+        // 骸骨军团：所有玩家召唤 8（11），然后「其他玩家」再获得等同于出牌者奥斯提当前生命值的召唤。
+        [typeof(LegionOfBone)] = async (card, ctx, play) =>
+        {
+            await CreatureCmd.TriggerAnim(
+                card.Owner.Creature,
+                Necrobinder.GetSummonAnimIfApplicable(card.Owner.Character),
+                Necrobinder.GetSummonDelayIfApplicable(card.Owner.Character));
+
+            // 先快照，避免「召唤抬高了奥斯提血量」把后面的数量算大
+            int ostySummon = card.Owner.Osty is { IsAlive: true } osty ? osty.CurrentHp : 0;
+
+            List<Creature> allies = card.CombatState.PlayerCreatures.Where(c => c is { IsAlive: true }).ToList();
+            foreach (Creature ally in allies)
+            {
+                await OstyCmd.Summon(ctx, ally.Player, card.DynamicVars.Summon.BaseValue, card);
+            }
+
+            if (ostySummon <= 0) return;
+
+            foreach (Creature ally in allies)
+            {
+                if (ally == card.Owner.Creature) continue;
+                await OstyCmd.Summon(ctx, ally.Player, ostySummon, card);
+            }
+        },
+
+        // 死者苏生：召唤 5（10），本回合内不受伤害、不死于灾厄。
+        [typeof(Reanimate)] = async (card, ctx, play) =>
+        {
+            await CreatureCmd.TriggerAnim(
+                card.Owner.Creature,
+                Necrobinder.GetSummonAnimIfApplicable(card.Owner.Character),
+                Necrobinder.GetSummonDelayIfApplicable(card.Owner.Character));
+
+            await OstyCmd.Summon(ctx, card.Owner, card.DynamicVars.Summon.BaseValue, card);
+
+            if (card.Owner.Creature.GetPower<ReanimateWardPower>() == null)
+            {
+                await PowerCmd.Apply<ReanimateWardPower>(ctx, card.Owner.Creature, 1m, card.Owner.Creature, card);
+            }
+        },
     };
 
     /// <summary>
@@ -921,6 +1217,12 @@ internal static class Reworks
     /// </summary>
     public static readonly Dictionary<Type, Action<CardModel>> UpgradeReplace = new()
     {
+        // 吞噬生命：原版升级是「给能力 +1 层」，而能力的数值变量已经被我们换掉，原版读 DevourLifePower 会抛
+        // KeyNotFoundException（百科里一预览升级就崩），所以这里整段替换：1 → 0 费。
+        [typeof(DevourLife)] = card => card.EnergyCost.UpgradeBy(-1),
+
+        // 灰烬之灵：同上，原版读 BlockOnExhaust 会抛，整段替换成 2 → 1 费。
+        [typeof(SpiritOfAsh)] = card => card.EnergyCost.UpgradeBy(-1),
         // 鞭打：原版升级会「灾厄 +3、抽牌 +1」，我们只要灾厄 15 → 21（+6）、转移 10 → 12（+2），抽牌固定 2 张
         [typeof(Scourge)] = card =>
         {
@@ -945,8 +1247,14 @@ internal static class Reworks
         // 增生：原版升级「召唤 +2、治疗 +2」，现在没有召唤了，治疗 5 → 8
         [typeof(Spur)] = card => card.DynamicVars.Heal.UpgradeValueBy(3m),
 
-        // 捕捉灵魂：原版升级是伤害 +1、灵魂 +1；追加的减力量也是 3 → 4
-        [typeof(CaptureSpirit)] = card => card.DynamicVars["StrengthLoss"].UpgradeValueBy(1m),
+        // 捕捉灵魂：这张表是「整段替换」，原版的 +1 伤害 / +1 灵魂都不会执行，
+        //             所以这里把三个数值一起写满（伤害 3→4、灵魂 3→4、减力量 3→4）
+        [typeof(CaptureSpirit)] = card =>
+        {
+            card.DynamicVars.Damage.UpgradeValueBy(1m);
+            card.DynamicVars.Cards.UpgradeValueBy(1);
+            card.DynamicVars["StrengthLoss"].UpgradeValueBy(1m);
+        },
 
         // 弱化之触：这张表是「整段替换」，原版的 +3 不会执行，所以这里自己给足 +4（12 → 16）
         [typeof(EnfeeblingTouch)] = card => card.DynamicVars["StrengthLoss"].UpgradeValueBy(4m),
@@ -972,6 +1280,21 @@ internal static class Reworks
 
         // 洁净：原版是召唤 3 → 5，现在改成灾厄 6 → 9
         [typeof(Cleanse)] = card => card.DynamicVars.Doom.UpgradeValueBy(3m),
+
+        // 苦难：虚弱固定 1 层（升级不变），升级只给「保留」
+        [typeof(Misery)] = card => card.AddKeyword(CardKeyword.Retain),
+
+        // 大限已至：保留已经常驻，升级改成 2 → 1 费
+        [typeof(TimesUp)] = card => card.EnergyCost.UpgradeBy(-1),
+
+        // 吊杀：原版 +3，现在 11 → 13 是 +2
+        [typeof(Hang)] = card => card.DynamicVars.Damage.UpgradeValueBy(2m),
+
+        // 骸骨军团：原版 +2，现在 8 → 11 是 +3
+        [typeof(LegionOfBone)] = card => card.DynamicVars.Summon.UpgradeValueBy(3m),
+
+        // 死者苏生：原版 +5，现在 5 → 10 仍是 +5
+        [typeof(Reanimate)] = card => card.DynamicVars.Summon.UpgradeValueBy(5m),
     };
 
     /// <summary>
@@ -999,6 +1322,22 @@ internal static class Reworks
 
         // 猛晃：加「保留」
         [typeof(Rattle)] = [CardKeyword.Retain],
+
+        [typeof(Undeath)] = [CardKeyword.Ethereal],
+
+        // 大限已至：自带保留
+        [typeof(TimesUp)] = [CardKeyword.Retain],
+
+        // 重构：原本只有「消耗」，现在再加「保留」（升级仍会去掉消耗）
+        [typeof(Transfigure)] = [CardKeyword.Exhaust, CardKeyword.Retain],
+    };
+
+    /// <summary>
+    /// 改卡牌类型（原版类型写在构造函数里，这里覆盖 CardModel.Type）。目前只用来把「苦难」从攻击改成技能。
+    /// </summary>
+    public static readonly Dictionary<Type, CardType> Types = new()
+    {
+        [typeof(Misery)] = CardType.Skill,
     };
 
     /// <summary>
@@ -1011,6 +1350,9 @@ internal static class Reworks
 
         // 厄运之衣：2 费 → 1 费（升级前后都是 1 费）
         [typeof(Shroud)] = 1,
+
+        // 死者苏生：3 费 → 2 费（升级前后都是 2 费）
+        [typeof(Reanimate)] = 2,
     };
 
     /// <summary>

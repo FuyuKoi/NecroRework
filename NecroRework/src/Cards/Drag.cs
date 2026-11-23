@@ -51,6 +51,8 @@ public sealed class Drag : CardModel
 
     private static bool DoomThresholdReached(CardModel card)
     {
+        // 百科里拿到的是 canonical 模型，访问 Owner 会抛 CanonicalModelException
+        if (card.IsCanonical) return false;
         if (card.Owner is null) return false;
 
         int threshold = card.IsUpgraded ? DoomThresholdUpgraded : DoomThreshold;

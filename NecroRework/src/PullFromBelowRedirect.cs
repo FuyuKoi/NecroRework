@@ -114,6 +114,11 @@ internal static class PullFromBelowRedirect
         {
             if (_busy) return true;
 
+            // 兜底：牌如果没登记在当前战斗里，CardCmd.Exhaust 之后会抛
+            // 「must be added to a CombatState」，整条回合循环会死（结束回合卡住）。
+            // 这里先补登记，保证消耗一定能走完。
+            CombatCardGuard.EnsureRegistered(card, "消耗前兜底");
+
             var player = card.Owner;
             var creature = player?.Creature;
             if (creature == null || !creature.IsAlive) return true;

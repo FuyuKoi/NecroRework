@@ -28,7 +28,13 @@
   "BEGINNER_MIND_POWER.title": "初心",
   "BEGINNER_MIND_POWER.description": "每回合开始时，将上回合最先被动消耗的3张[gold]虚无[/gold]牌放回[gold]手牌[/gold]，并获得6点[gold]格挡[/gold]。",
   "FLEETING_LIFE_POWER.title": "此生渺渺",
-  "FLEETING_LIFE_POWER.description": "你每打出一张[gold]虚无[/gold]牌就会累积1点，累积到6点后获得1层[gold]无实体[/gold]，然后重新累积。\n（本回合已累积{Amount}点）",
+  "FLEETING_LIFE_POWER.description": "在一个回合中每打出6张[gold]虚无[/gold]牌，就获得{Amount}层[gold]无实体[/gold]。",
   "NECRO_MASTERY_GUARD_POWER.title": "冥归",
-  "NECRO_MASTERY_GUARD_POWER.description": "奥斯提每失去1点生命值，你就积攒{Amount}点[gold]格挡[/gold]，下回合开始时获得。"
+  "NECRO_MASTERY_GUARD_POWER.description": "奥斯提每失去1点生命值，你就积攒{Amount}点[gold]格挡[/gold]，下回合开始时获得。",
+  "DEVOUR_LIFE_REWORK_POWER.title": "吞噬生命",
+  "DEVOUR_LIFE_REWORK_POWER.description": "每回合当你打出第二张[gold]灵魂[/gold]时，获得{Amount}点[gold]费用[/gold]。",
+  "SPIRIT_OF_ASH_REWORK_POWER.title": "灰烬之灵",
+  "SPIRIT_OF_ASH_REWORK_POWER.description": "每当你打出一张[gold]虚无[/gold]牌时，获得5点[gold]格挡[/gold]。\n你的回合开始时，为至多{Amount}张[gold]手牌[/gold]附魔[gold]飘荡[/gold]。",
+  "REANIMATE_WARD_POWER.title": "死者苏生",
+  "REANIMATE_WARD_POWER.description": "本回合内你不会受到伤害，也不会死于[gold]灾厄[/gold]。"
 }

@@ -27,9 +27,10 @@ public sealed class CraftSpirit : CardModel
     }
 
     /// <summary>奥斯提不在场时这张牌毫无作用，直接按原版「奥斯提牌」的规矩禁打并标红。</summary>
-    protected override bool IsPlayable => !Owner.IsOstyMissing;
+    // 百科/图鉴里拿到的是 canonical 模型，访问 Owner 会抛 CanonicalModelException，先短路
+    protected override bool IsPlayable => IsCanonical || !Owner.IsOstyMissing;
 
-    protected override bool ShouldGlowRedInternal => Owner.IsOstyMissing;
+    protected override bool ShouldGlowRedInternal => !IsCanonical && Owner.IsOstyMissing;
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {

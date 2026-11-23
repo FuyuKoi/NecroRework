@@ -37,6 +37,8 @@ public sealed class LifeAndDeath : CardModel
     /// <summary>奥斯提缺失的生命值（不在场就按 0 算）。</summary>
     public static int MissingHpOf(CardModel card)
     {
+        // 百科里拿到的是 canonical 模型，访问 Owner 会抛 CanonicalModelException
+        if (card.IsCanonical) return 0;
         if (card.Owner?.Osty is not { IsAlive: true } osty) return 0;
 
         return Math.Max(0, osty.MaxHp - osty.CurrentHp);

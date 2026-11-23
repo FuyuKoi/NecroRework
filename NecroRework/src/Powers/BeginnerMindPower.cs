@@ -34,6 +34,22 @@ public sealed class BeginnerMindPower : PowerModel
         List<CardModel> recall = PassiveExhaustLog.TakeLastTurn(player, RecallCount);
         if (recall.Count > 0)
         {
+            // 兜底：回收的牌必须登记在当前这场战斗里，否则 Add 进手牌之后
+            // 回合结束燃烧时会抛「must be added to a CombatState」，整条回合循环会死。
+            recall.RemoveAll(card =>
+            {
+                bool ok = CombatCardGuard.EnsureRegistered(card, "初心回收");
+                if (!ok)
+                {
+                    Main.Log.Warn($"[{Main.ModId}] 初心：跳过无法登记的牌 {card.Id}");
+                }
+
+                return !ok;
+            });
+        }
+
+        if (recall.Count > 0)
+        {
             Flash();
             await CardPileCmd.Add(recall, PileType.Hand, CardPilePosition.Bottom);
         }

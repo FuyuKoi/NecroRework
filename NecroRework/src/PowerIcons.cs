@@ -103,6 +103,12 @@ internal static class PowerIcons
                     // 初心借用「灾厄之种」这类回合开始型能力的外观，用原版「预谋」图标
                     __result = ModelDb.Power<CallOfTheVoidPower>().PackedIconPath;
                     break;
+                case DevourLifeReworkPower:
+                    __result = ModelDb.Power<DevourLifePower>().PackedIconPath;
+                    break;
+                case SpiritOfAshReworkPower:
+                    __result = ModelDb.Power<SpiritOfAshPower>().PackedIconPath;
+                    break;
                 case FleetingLifePower:
                     // 此生渺渺给的是无实体，借用「无实体」的图标
                     __result = ModelDb.Power<IntangiblePower>().PackedIconPath;
@@ -110,6 +116,11 @@ internal static class PowerIcons
                 case NecroMasteryGuardPower:
                     // 亡灵精通的附赠能力，和本体共用图标
                     __result = ModelDb.Power<NecroMasteryPower>().PackedIconPath;
+                    break;
+
+                case ReanimateWardPower:
+                    // 死者苏生的免伤护佑，借用「无实体」图标
+                    __result = ModelDb.Power<IntangiblePower>().PackedIconPath;
                     break;
             }
         }

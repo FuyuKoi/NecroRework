@@ -1,4 +1,4 @@
-using MegaCrit.Sts2.Core.Commands;
+﻿using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Factories;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
@@ -39,9 +39,18 @@ public sealed class AllIsVoid : CardModel
         int normalCount = handCards.Count - etherealCount;
 
         // 全部消耗掉（带的「飘荡」在这里也会照常结算）。
+        // 单张失败（比如亡魂牵引把它改成自动打出、而它没有合法目标）不能中断整张牌，
+        // 否则会出现「手牌被烧光了、却一张反相牌都没生成」的情况。
         foreach (CardModel card in handCards)
         {
-            await CardCmd.Exhaust(choiceContext, card);
+            try
+            {
+                await CardCmd.Exhaust(choiceContext, card);
+            }
+            catch (System.Exception e)
+            {
+                Main.Log.Error($"[{Main.ModId}] 万事皆空：消耗 {card.Id} 失败（已跳过）: {e.Message}");
+            }
         }
 
         // 随机池：只用本角色的卡池，虚无 / 非虚无分开抽；允许重复（同「添柴」）。
@@ -59,21 +68,37 @@ public sealed class AllIsVoid : CardModel
 
         var generated = new List<CardModel>();
 
+        // 兜底：如果目标池子空了（比如卡池里没有足够的虚无牌），就拿另一半池子补，
+        // 免得「手牌烧光却一张都不生成」。
+        List<CardModel> EtherealSource() =>
+            fromEtherealPool.Count > 0 ? fromEtherealPool : fromNormalPool;
+
+        List<CardModel> NormalSource() =>
+            fromNormalPool.Count > 0 ? fromNormalPool : fromEtherealPool;
+
         // 消耗的是非虚无牌 → 补虚无牌。
-        if (normalCount > 0 && fromEtherealPool.Count > 0)
+        if (normalCount > 0)
         {
-            generated.AddRange(CardFactory.GetForCombat(
-                Owner, fromEtherealPool, normalCount, Owner.RunState.Rng.CombatCardGeneration));
+            List<CardModel> source = EtherealSource();
+            if (source.Count > 0)
+            {
+                generated.AddRange(CardFactory.GetForCombat(
+                    Owner, source, normalCount, Owner.RunState.Rng.CombatCardGeneration));
+            }
         }
 
         // 消耗的是虚无牌 → 补非虚无牌（稍后附魔「飘荡」）。
         int filledWithNormal = 0;
-        if (etherealCount > 0 && fromNormalPool.Count > 0)
+        if (etherealCount > 0)
         {
-            List<CardModel> normals = CardFactory.GetForCombat(
-                Owner, fromNormalPool, etherealCount, Owner.RunState.Rng.CombatCardGeneration).ToList();
-            generated.AddRange(normals);
-            filledWithNormal = normals.Count;
+            List<CardModel> source = NormalSource();
+            if (source.Count > 0)
+            {
+                List<CardModel> normals = CardFactory.GetForCombat(
+                    Owner, source, etherealCount, Owner.RunState.Rng.CombatCardGeneration).ToList();
+                generated.AddRange(normals);
+                filledWithNormal = normals.Count;
+            }
         }
 
         if (generated.Count == 0)

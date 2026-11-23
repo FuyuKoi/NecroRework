@@ -11,9 +11,11 @@ namespace NecroRework;
 internal static class CombatStats
 {
     /// <summary>本场战斗中，该卡牌拥有者累计获得的召唤量。</summary>
-    public static int TotalSummon(CardModel card)
+    public static int TotalSummon(CardModel? card)
     {
-        if (card?.Owner?.Creature is not { } me) return 0;
+        // 百科/图鉴里拿到的是 canonical 模型，访问 Owner 会抛 CanonicalModelException
+        if (card is null || card.IsCanonical) return 0;
+        if (card.Owner?.Creature is not { } me) return 0;
 
         var manager = CombatManager.Instance;
         if (manager?.History == null) return 0;

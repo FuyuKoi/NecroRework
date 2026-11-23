@@ -12,7 +12,7 @@ using MegaCrit.Sts2.Core.Models.Powers;
 namespace NecroRework.Powers;
 
 /// <summary>
-/// 此生渺渺：累计本回合打出的「虚无」牌，每满 6 张给 1 层无实体，然后重新计数。
+/// 此生渺渺：累计本回合打出的「虚无」牌，每满 6 张给 Amount 层无实体，然后重新计数。
 /// </summary>
 public sealed class FleetingLifePower : PowerModel
 {
@@ -44,7 +44,7 @@ public sealed class FleetingLifePower : PowerModel
         if (_playedThisTurn % CardsPerIntangible != 0) return;
 
         Flash();
-        await PowerCmd.Apply<IntangiblePower>(choiceContext, owner, 1m, Applier, null);
+        await PowerCmd.Apply<IntangiblePower>(choiceContext, owner, Amount, Applier, null);
     }
 
     public override Task AfterSideTurnStart(CombatSide side, IReadOnlyList<Creature> participants,

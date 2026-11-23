@@ -1,4 +1,4 @@
 {
   "BONE_FLUTE.description": "每回合[gold]奥斯提[/gold]第一次攻击时，获得[blue]{Block}[/blue]点[gold]格挡[/gold]。",
-  "BOUND_PHYLACTERY.description": "在每场战斗的最初三个回合开始时，[gold]召唤[/gold][blue]2[/blue]。之后每个回合开始时，[gold]召唤[/gold][blue]1[/blue]。"
+  "BOUND_PHYLACTERY.description": "在每场战斗的前三个回合开始时，[gold]召唤[/gold][blue]2[/blue]。之后每个回合开始时，[gold]召唤[/gold][blue]1[/blue]。"
 }

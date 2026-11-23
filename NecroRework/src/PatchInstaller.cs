@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
@@ -22,6 +22,7 @@ internal static class PatchInstaller
         var keywordsPrefix = new HarmonyMethod(typeof(Patches), nameof(Patches.KeywordsPrefix));
         var tipsPrefix = new HarmonyMethod(typeof(Patches), nameof(Patches.TipsPrefix));
         var costPrefix = new HarmonyMethod(typeof(Patches), nameof(Patches.CostPrefix));
+        var typePostfix = new HarmonyMethod(typeof(Patches), nameof(Patches.TypePostfix));
 
         foreach (var type in Reworks.Vars.Keys)
         {
@@ -74,6 +75,21 @@ internal static class PatchInstaller
         PatchProperty(harmony, keywordsPrefix, "CanonicalKeywords", Reworks.Keywords.Keys);
         PatchProperty(harmony, tipsPrefix, "ExtraHoverTips", Reworks.Tips.Keys);
         PatchProperty(harmony, costPrefix, "CanonicalEnergyCost", Reworks.Costs.Keys);
+
+        // 改卡牌类型（攻击 → 技能之类）：CardModel.Type 是 public virtual，直接在基类 getter 上挂 postfix。
+        if (Reworks.Types.Count > 0)
+        {
+            Safe("卡牌类型改写", () =>
+            {
+                var typeGetter = AccessTools.DeclaredProperty(typeof(CardModel), "Type")?.GetGetMethod(true);
+                if (typeGetter == null)
+                {
+                    Main.Log.Warn($"[{Main.ModId}] 找不到 CardModel.Type，跳过类型改写");
+                    return;
+                }
+                harmony.Patch(typeGetter, postfix: typePostfix);
+            });
+        }
 
         // 不再提供格挡的卡：把原版自己 override 的 GainsBlock 改回 false，
         // 否则「提升格挡值」类附魔的候选里还会列出它们。
@@ -150,6 +166,9 @@ internal static class PatchInstaller
 
         // 奥斯提累计伤害统计（猛晃等卡按累计值结算）
         Safe("奥斯提伤害统计", () => OstyDamageTracker.Install(harmony));
+
+        // 卡牌大全网格守卫（原版网格在只剩一行时会越界，导致图鉴显示不全）
+        Safe("卡牌大全网格守卫", () => CardGridGuard.Install(harmony));
 
         Main.Log.Info($"[{Main.ModId}] 已挂载 {Reworks.Vars.Count} 个数值改写 / {Reworks.Play.Count} 个效果改写 / {Reworks.Upgrade.Count} 个升级补充 / {Reworks.UpgradeReplace.Count} 个升级替换 / {Reworks.Costs.Count} 个费用改写 / {Reworks.Keywords.Count} 个关键词改写 / {Reworks.Tips.Count} 个提示改写");
 
@@ -420,6 +439,15 @@ internal static class Patches
 
         __result = cost;
         return false;
+    }
+
+    /// <summary>整段替换卡牌类型（如把「苦难」从攻击改成技能）。</summary>
+    public static void TypePostfix(object __instance, ref CardType __result)
+    {
+        if (__instance is not CardModel card) return;
+        if (!Reworks.Types.TryGetValue(card.GetType(), out CardType type)) return;
+
+        __result = type;
     }
 
     /// <summary>把自己卡牌 OnPlay 返回的 Task 换成「异常不会外泄」的版本。</summary>
