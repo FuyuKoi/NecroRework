@@ -10,15 +10,15 @@ namespace NecroRework.Cards;
 
 /// <summary>
 /// 不详重拳：3 费攻击（罕见/蓝卡），虚无 + 消耗；升级后只去掉「消耗」。
-/// 奥斯提造成 20 点伤害 → 你获得 20 点格挡 → 奥斯提获得 20 层灾厄。
+/// 奥斯提造成 30 点伤害 → 你获得 20 点格挡 → 奥斯提获得 10 层灾厄。
 /// </summary>
 public sealed class OminousPunch : CardModel
 {
-    private const decimal OstyDamage = 20m;
+    private const decimal OstyDamage = 30m;
 
     private const decimal Block = 20m;
 
-    private const decimal DoomToOsty = 20m;
+    private const decimal DoomToOsty = 10m;
 
     public OminousPunch()
         : base(3, CardType.Attack, CardRarity.Uncommon, TargetType.AnyEnemy)
@@ -50,7 +50,7 @@ public sealed class OminousPunch : CardModel
 
     protected override void OnUpgrade()
     {
-        // 升级只去掉「消耗」，数值（20/20/20）不变。
+        // 升级只去掉「消耗」，数值（30/20/10）不变。
         RemoveKeyword(CardKeyword.Exhaust);
     }
 }

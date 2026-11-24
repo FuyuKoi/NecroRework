@@ -31,6 +31,9 @@ internal static class CardArt
         [typeof(LivingEnd)] = "living_end.png",
         [typeof(OminousPunch)] = "ominous_punch.png",
         [typeof(AllIsVoid)] = "all_is_void.png",
+        [typeof(WorldBurden)] = "world_burden.png",
+        [typeof(GraveFriend)] = "grave_friend.png",
+        [typeof(LifeAndDeath)] = "life_and_death.png",
     };
 
     private static Texture2D _placeholder;
@@ -242,7 +245,7 @@ internal static class CardArt
 
     /// <summary>还没有专属卡图的新卡，统一用游戏自带的 beta 占位图。</summary>
     private static bool UsesPlaceholder(CardModel card) =>
-        card is FleetingLife or Continuation or Drag or Cover or Sublimation or LifeAndDeath or BeginnerMind or Mend or Gaze or SoulGather or Forsake or GraveFriend or SoulBarrier or RiverOfOblivion or WorldBurden or TurnToDust or RebornAnew;
+        card is FleetingLife or Continuation or Drag or Cover or Sublimation or BeginnerMind or Mend or Gaze or SoulGather or Forsake or SoulBarrier or RiverOfOblivion or TurnToDust or RebornAnew;
 
     private static Texture2D Load(string fileName)
     {

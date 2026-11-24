@@ -2,6 +2,7 @@ using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Combat.History.Entries;
 using MegaCrit.Sts2.Core.Commands;
+using MegaCrit.Sts2.Core.Extensions;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Entities.Powers;
@@ -220,8 +221,21 @@ internal static class Reworks
         //       并额外记录「每次攻击给你 3（升级 4）格挡」
         [typeof(Calcify)] = _ => [new PowerVar<CalcifyPower>(3m), new BlockVar(3m, ValueProp.Unpowered)],
 
-        // 洁净：召唤 3（升级 5）→ 改成「移除 6（升级 9）层灾厄」，数值用灾厄变量显示
-        [typeof(Cleanse)] = _ => [new PowerVar<DoomPower>(9m)],
+        // 洁净：召唤 3（升级 5）→ 改成「移除 9（升级 12）层灾厄」，数值用灾厄变量显示，
+        //       另外挂一个「实际能拿多少格挡」的展示变量（= min(上限, 你+奥斯提现有的灾厄)）
+        [typeof(Cleanse)] = _ =>
+        [
+            new CalculationBaseVar(0m),
+            new CalculationExtraVar(1m),
+            new PowerVar<DoomPower>(9m),
+            new CalculatedBlockVar(ValueProp.Move).WithMultiplier((CardModel card, Creature? _) => CleanseBlockPreview(card)),
+        ],
+
+        // 能量汲取：伤害 10（升级 12）→ 11（升级 12，升级只 +1）；随机升级 2 张 → 3 张
+        [typeof(DrainPower)] = _ => [new DamageVar(11m, ValueProp.Move), new CardsVar(3)],
+
+        // 摧残：易伤/虚弱翻倍持续 2（升级 3）回合 → 3（升级 4）回合，等于「生效回合延长 1」
+        [typeof(Debilitate)] = _ => [new DamageVar(10m, ValueProp.Move), new PowerVar<DebilitatePower>(3m)],
 
         // 厄运之衣：每次施加灾厄时的格挡 3（升级 4）→ 4（升级 5），升级仍 +1
         [typeof(Shroud)] = _ => [new BlockVar(4m, ValueProp.Unpowered)],
@@ -291,8 +305,6 @@ internal static class Reworks
     /// <summary>猛晃升级后：门槛降到 14。</summary>
     private const int HitsPerFourteen = 14;
 
-    /// <summary>碎骨加强模式的触发门槛：奥斯提至少这么多生命值。</summary>
-    private const decimal EmpoweredBoneShardsHp = 24m;
 
     /// <summary>
     /// 守护者的额外伤害：本场战斗中每召唤 2 点 +2，每消耗 1 张牌 +2。
@@ -410,6 +422,32 @@ internal static class Reworks
         }
 
         return Math.Floor(osty.CurrentHp * 0.75m);
+    }
+
+    /// <summary>
+    /// 洁净：卡面上「（获得 X 点格挡）」的预览值 = min(移除上限, 你身上的灾厄 + 奥斯提身上的灾厄)。
+    /// </summary>
+    private static decimal CleanseBlockPreview(CardModel card)
+    {
+        // 百科里拿到的是 canonical 模型，没有 Owner，必须提前短路
+        if (card.IsCanonical)
+        {
+            return 0m;
+        }
+
+        int budget = (int)card.DynamicVars.Doom.BaseValue;
+        if (budget <= 0)
+        {
+            return 0m;
+        }
+
+        int available = DoomUtil.PlayerDoom(card);
+        if (card.Owner.Osty is { IsAlive: true } osty)
+        {
+            available += (int)DoomUtil.DoomOf(osty);
+        }
+
+        return Math.Min(budget, Math.Max(0, available));
     }
 
     /// <summary>
@@ -880,33 +918,57 @@ internal static class Reworks
             await PowerCmd.Apply<NecroMasteryGuardPower>(ctx, card.Owner.Creature, 1m, card.Owner.Creature, card);
         },
 
-        // 碎骨：打完必定牺牲奥斯提；他生命值 ≥24 时这一击变成双倍伤害并附带 1 层虚弱
+        // 碎骨：奥斯提对所有敌人造成伤害 + 你获得格挡 → 然后他损失一半生命值 → 全体 1 层虚弱
         [typeof(BoneShards)] = async (card, ctx, play) =>
         {
             if (Osty.CheckMissingWithAnim(card.Owner)) return;
 
             Creature osty = card.Owner.Osty!;
-            bool empowered = osty.CurrentHp >= EmpoweredBoneShardsHp;
 
-            decimal damage = card.DynamicVars.OstyDamage.BaseValue * (empowered ? 2m : 1m);
-
-            await DamageCmd.Attack(damage).FromOsty(osty, card, play)
+            await DamageCmd.Attack(card.DynamicVars.OstyDamage.BaseValue).FromOsty(osty, card, play)
                 .TargetingAllOpponents(card.CombatState)
                 .WithHitFx("vfx/vfx_attack_blunt", null, "blunt_attack.mp3")
                 .Execute(ctx);
 
             await CreatureCmd.GainBlock(card.Owner.Creature, card.DynamicVars.Block, play);
 
-            if (empowered)
-            {
-                await PowerCmd.Apply<WeakPower>(ctx, card.CombatState.HittableEnemies, 1m,
-                    card.Owner.Creature, card);
-            }
+            await PowerCmd.Apply<WeakPower>(ctx, card.CombatState.HittableEnemies, 1m,
+                card.Owner.Creature, card);
 
-            // 不管多少血都会死（保持原版行为）
-            if (card.Owner.IsOstyAlive)
+            // 「然后损失一半的生命值」：按当时剩余生命值的一半扣，向上取整
+            if (card.Owner.Osty is { IsAlive: true } aliveOsty)
             {
-                await CreatureCmd.Kill(card.Owner.Osty!, card);
+                decimal half = Math.Ceiling(aliveOsty.CurrentHp / 2m);
+                if (half > 0m)
+                {
+                    await CreatureCmd.Damage(ctx, aliveOsty, half,
+                        ValueProp.Unblockable | ValueProp.Unpowered, card, play);
+                }
+            }
+        },
+
+        // 能量汲取：伤害 → 升级弃牌堆里的牌（未升级：随机 3 张；升级后：所有可升级的牌）
+        [typeof(DrainPower)] = async (card, ctx, play) =>
+        {
+            if (play.Target is not { } target) return;
+
+            await DamageCmd.Attack(card.DynamicVars.Damage.BaseValue).FromCard(card, play)
+                .Targeting(target)
+                .WithHitFx("vfx/vfx_attack_slash")
+                .Execute(ctx);
+
+            List<CardModel> upgradable = PileType.Discard.GetPile(card.Owner).Cards
+                .Where(c => c.IsUpgradable)
+                .ToList();
+
+            IEnumerable<CardModel> picks = card.IsUpgraded
+                ? upgradable
+                : upgradable.TakeRandom(card.DynamicVars.Cards.IntValue, card.Owner.RunState.Rng.CombatCardSelection);
+
+            foreach (CardModel pick in picks.ToList())
+            {
+                CardCmd.Upgrade(pick);
+                CardCmd.Preview(pick);
             }
         },
 
@@ -1379,8 +1441,17 @@ internal static class Reworks
             card.DynamicVars.Block.UpgradeValueBy(1m);
         },
 
-        // 洁净：原版是召唤 3 → 5，现在改成灾厄 6 → 9
+        // 洁净：原版是召唤 3 → 5，现在改成灾厄 9 → 12
         [typeof(Cleanse)] = card => card.DynamicVars.Doom.UpgradeValueBy(3m),
+
+        // 能量汲取：原版升级 +2 伤害，现在 11 → 12 只 +1（张数固定 3，升级改为升级弃牌堆全部牌）
+        [typeof(DrainPower)] = card => card.DynamicVars.Damage.UpgradeValueBy(1m),
+
+        // 得力助手：原版升级 +2 伤害，现在 4 → 5 只 +1
+        [typeof(RightHandHand)] = card => card.DynamicVars.OstyDamage.UpgradeValueBy(1m),
+
+        // 女妖之嚎：升级不再降费，改成伤害 +8（36 → 44）
+        [typeof(BansheesCry)] = card => card.DynamicVars.Damage.UpgradeValueBy(8m),
 
         // 苦难：虚弱固定 1 层（升级不变），升级只给「保留」
         [typeof(Misery)] = card => card.AddKeyword(CardKeyword.Retain),
@@ -1437,6 +1508,9 @@ internal static class Reworks
 
         // 幽冥之界（原版多人卡）：额外加「保留」（升级仍会去掉消耗，保留留下）
         [typeof(Underworld)] = [CardKeyword.Exhaust, CardKeyword.Retain],
+
+        // 死者苏生：原本只有「消耗」，现在再加「保留」
+        [typeof(Reanimate)] = [CardKeyword.Exhaust, CardKeyword.Retain],
     };
 
     /// <summary>
