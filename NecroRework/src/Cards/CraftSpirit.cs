@@ -9,14 +9,14 @@ namespace NecroRework.Cards;
 
 /// <summary>
 /// 造灵：1 费技能（普通品质，升级后 0 费）。
-/// 奥斯提存活时：他失去 15 点生命值、承受你的 3 点灾厄，你手牌里入手一张灵魂（升级后是灵魂+）。
+/// 奥斯提存活时：他失去 7 点生命值、承受你的 9 点灾厄，你手牌里入手一张灵魂（升级后是灵魂+）。
 /// 如果施放时他身上已经有灾厄，他再失去 4 点生命值和 20 点生命值上限。
 /// </summary>
 public sealed class CraftSpirit : CardModel
 {
     private const ValueProp HpLossProps = ValueProp.Unblockable | ValueProp.Unpowered | ValueProp.Move;
 
-    private const decimal OstyHpLoss = 11m;
+    private const decimal OstyHpLoss = 7m;
     private const decimal DoomToOsty = 9m;
     private const decimal ExtraHpLoss = 4m;
     private const decimal MaxHpLoss = 20m;

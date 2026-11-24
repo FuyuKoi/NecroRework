@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -52,8 +52,13 @@ internal static class OstyHpGainTracker
         }
         else
         {
+            // 用 prefix 清零：必须在「回合开始时的各种结算」之前清空，
+            // 这样下面这些在同一钩子里发生的加血才会算进本回合：
+            //   · 化作尘泥（TurnToDustPower）把剩余格挡转成召唤
+            //   · 遗物 / 其它 mod 在回合开始时的召唤
+            // 以前挂在 postfix（结算完之后清），会把它们刚加的血抹掉，增生就吃不到。
             harmony.Patch(turnStart,
-                postfix: new HarmonyMethod(typeof(OstyHpGainTracker), nameof(BeforeSideTurnStartPostfix)));
+                prefix: new HarmonyMethod(typeof(OstyHpGainTracker), nameof(BeforeSideTurnStartPrefix)));
         }
 
         // 每场战斗开始时把账本清空：上一场战斗的累计不能带进新战斗。
@@ -117,9 +122,9 @@ internal static class OstyHpGainTracker
         }
     }
 
-    private static void BeforeSideTurnStartPostfix(MegaCrit.Sts2.Core.Combat.CombatSide side)
+    private static void BeforeSideTurnStartPrefix(MegaCrit.Sts2.Core.Combat.CombatSide side)
     {
-        // 玩家回合刚开始（此时遗物/开场效果还没结算）：把上一回合的累计清掉。
+        // 玩家回合刚要开始（此时遗物/化作尘泥等还没结算）：把上一回合的累计清掉。
         //
         // 但每场战斗的第一个玩家回合要跳过清理 —— 开头那些「战斗开始时召唤」
         // （缚魂命匣 / 无界命匣的 BeforeCombatStart 召唤）已经先把奥斯提血量加上去了，

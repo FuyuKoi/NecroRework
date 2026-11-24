@@ -159,6 +159,11 @@ internal static class PatchInstaller
 
         // 飘荡的附魔图标（原版接口只吃 res:// 里的 CompressedTexture2D，这里在卡面刷新后替换）
         Safe("飘荡图标", () => DriftIcon.Install(harmony));
+        Safe("飘荡补写虚无", () => DriftPatches.InstallEnchantHook(harmony));
+        Safe("飘荡关键词", () => DriftKeywords.Install(harmony));
+
+        // 多折磨共存（恶咒 + 魂缚污染这类原版折磨原来会互相冲突直接抛异常）
+        Safe("多折磨共存", () => MultiAffliction.Install(harmony));
 
         // 初心：记录「被动消耗的虚无牌」，供每回合回收
         Safe("被动消耗记录", () => PassiveExhaustLog.Install(harmony));
@@ -166,6 +171,9 @@ internal static class PatchInstaller
 
         // 奥斯提累计伤害统计（猛晃等卡按累计值结算）
         Safe("奥斯提伤害统计", () => OstyDamageTracker.Install(harmony));
+
+        // 本场战斗累计消耗牌数（守护者按这个加伤害）
+        Safe("消耗统计", () => ExhaustCountTracker.Install(harmony));
 
         // 卡牌大全网格守卫（原版网格在只剩一行时会越界，导致图鉴显示不全）
         Safe("卡牌大全网格守卫", () => CardGridGuard.Install(harmony));

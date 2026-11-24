@@ -56,8 +56,17 @@ internal static class IntentPreview
 	/// <summary>显示节点 → 它当前正在显示的意图（用于把模拟结果写回每一个节点）。</summary>
 	private static readonly Dictionary<NIntent, AbstractIntent> Nodes = new();
 
-	/// <summary>本轮模拟算出的「每个意图对应的（x）」。</summary>
+	/// <summary>本轮模拟算出的「每个意图对应的（x）」——只存数字，颜色另记。</summary>
 	private static readonly Dictionary<AbstractIntent, string> Suffixes = new();
+
+	/// <summary>这一批里哪些意图的数字要用青色（死者苏生期间显示 0）。</summary>
+	private static readonly HashSet<AbstractIntent> SafeSuffixes = new();
+
+	/// <summary>意图节点 → 我们自己加的「伤害预判」小标签（贴在意图图标上方，避免和旁边的复合意图打架）。</summary>
+	private static readonly Dictionary<NIntent, Label> ExtraLabels = new();
+
+	private static readonly Color PreviewRed = new(0.788f, 0.082f, 0.082f, 1f);
+	private static readonly Color PreviewCyan = new(0f, 0.851f, 1f, 1f);
 
 	private sealed class State
 	{
@@ -202,6 +211,7 @@ internal static class IntentPreview
 		int spillBuffer = 0;
 
 		Suffixes.Clear();
+		SafeSuffixes.Clear();
 
 		foreach (Creature enemy in combatState.Enemies)
 		{
@@ -231,7 +241,8 @@ internal static class IntentPreview
 
 				if (undying)
 				{
-					Suffixes[intent] = SafeColorOpen + "（0）" + SafeColorClose;
+					Suffixes[intent] = "0";
+					SafeSuffixes.Add(intent);
 					continue;
 				}
 
@@ -309,7 +320,7 @@ internal static class IntentPreview
 					preDamage = 0;
 				}
 
-				Suffixes[intent] = taken > 0 ? ColorOpen + "（" + taken + "）" + ColorClose : string.Empty;
+				Suffixes[intent] = taken > 0 ? taken.ToString() : string.Empty;
 			}
 		}
 
@@ -545,11 +556,26 @@ internal static class IntentPreview
 			}
 
 			string suffix = Suffixes.TryGetValue(pair.Value, out string text) ? text : string.Empty;
+			bool safe = SafeSuffixes.Contains(pair.Value);
 			MegaRichTextLabel label = ValueLabelRef(node);
+			bool solo = IsSoloIntent(node);
+
 			if (label != null)
 			{
-				label.Text = state.BaseText + suffix;
+				// 敌人只有这一个攻击意图时，保持原版位置与字号：直接把「（x）」接在数字后面。
+				// 复合意图（攻击 + 别的图标并排）才挪到图标上方，否则会压住右边的图标。
+				if (solo && suffix.Length > 0)
+				{
+					string open = safe ? "[color=#00d9ffe6][font_size=22]" : "[color=#c91515e6][font_size=22]";
+					label.Text = state.BaseText + open + "（" + suffix + "）[/font_size][/color]";
+				}
+				else
+				{
+					label.Text = state.BaseText;
+				}
 			}
+
+			UpdateExtraLabel(node, solo ? string.Empty : suffix, safe);
 		}
 
 		if (dead != null)
@@ -557,7 +583,78 @@ internal static class IntentPreview
 			foreach (NIntent node in dead)
 			{
 				Nodes.Remove(node);
+				ExtraLabels.Remove(node);
 			}
 		}
+	}
+
+	/// <summary>这个意图是不是敌人身上唯一的一个（只有攻击意图的敌人才走原版位置）。</summary>
+	private static bool IsSoloIntent(NIntent node)
+	{
+		try
+		{
+			Node? parent = node.GetParent();
+			if (parent == null) return true;
+
+			int count = 0;
+			foreach (Node child in parent.GetChildren())
+			{
+				if (child is NIntent candidate && GodotObject.IsInstanceValid(candidate))
+				{
+					count++;
+					if (count > 1) return false;
+				}
+			}
+
+			return count <= 1;
+		}
+		catch
+		{
+			return true;
+		}
+	}
+
+	/// <summary>把「预判伤害」写到意图节点上方的小标签里；没有数字就隐藏。</summary>
+	private static void UpdateExtraLabel(NIntent node, string suffix, bool safe)
+	{
+		if (string.IsNullOrEmpty(suffix))
+		{
+			if (ExtraLabels.TryGetValue(node, out Label hidden) && GodotObject.IsInstanceValid(hidden))
+			{
+				hidden.Visible = false;
+			}
+
+			return;
+		}
+
+		Label? shown = null;
+		if (ExtraLabels.TryGetValue(node, out Label cached) && GodotObject.IsInstanceValid(cached))
+		{
+			shown = cached;
+		}
+
+		if (shown == null)
+		{
+			shown = new Label
+			{
+				Name = "NecroPreviewValue",
+				Text = string.Empty,
+				HorizontalAlignment = HorizontalAlignment.Center,
+				VerticalAlignment = VerticalAlignment.Center,
+				MouseFilter = Control.MouseFilterEnum.Ignore,
+			};
+			shown.Position = new Vector2(-16f, -40f);
+			shown.Size = new Vector2(96f, 27f);
+			// 复合意图时放到图标上方，字号放大到 1.5 倍（原版数字是 22）。
+			shown.AddThemeFontSizeOverride("font_size", 27);
+			shown.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.6f));
+			shown.AddThemeConstantOverride("outline_size", 9);
+			node.AddChild(shown);
+			ExtraLabels[node] = shown;
+		}
+
+		shown.Text = "（" + suffix + "）";
+		shown.AddThemeColorOverride("font_color", safe ? PreviewCyan : PreviewRed);
+		shown.Visible = true;
 	}
 }

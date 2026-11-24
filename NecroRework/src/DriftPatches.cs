@@ -73,6 +73,44 @@ internal static class DriftPatches
         }
     }
 
+    /// <summary>
+    /// 附上飘荡的那一刻，直接把「虚无」写进这张牌的关键词（不只是 getter 叠一层）。
+    /// getter 那条路在某些界面/某些牌上会被别的东西绕过（例如别处缓存了关键词集合），
+    /// 真实写入之后，卡面显示、回合结束自烧的判定都会稳定生效。
+    /// 注意：CardCmd.Enchant 有两个重载（泛型版 + 非泛型版），所以这里显式定位，不用特性的自动匹配。
+    /// </summary>
+    internal static void InstallEnchantHook(Harmony harmony)
+    {
+        System.Reflection.MethodBase? target = AccessTools.Method(typeof(CardCmd), "Enchant",
+            [typeof(EnchantmentModel), typeof(CardModel), typeof(decimal)]);
+
+        if (target == null)
+        {
+            Main.Log.Warn($"[{Main.ModId}] 找不到 CardCmd.Enchant，飘荡不会补写[虚无]关键词");
+            return;
+        }
+
+        harmony.Patch(target,
+            postfix: new HarmonyMethod(typeof(DriftPatches), nameof(EnchantPostfix)));
+
+        Main.Log.Info($"[{Main.ModId}] 飘荡补写[虚无]关键词已挂载");
+    }
+
+    private static void EnchantPostfix(EnchantmentModel enchantment, CardModel card)
+    {
+        try
+        {
+            if (card == null || enchantment is not DriftEnchantment) return;
+            if (card.Keywords.Contains(CardKeyword.Ethereal)) return;
+            card.AddKeyword(CardKeyword.Ethereal);
+            Main.Log.Info($"[{Main.ModId}] 飘荡：已给 {card.Id} 写入[虚无]关键词");
+        }
+        catch (Exception e)
+        {
+            Main.Log.Error($"[{Main.ModId}] 飘荡写入虚无失败: {e}");
+        }
+    }
+
     /// <summary>消耗时获得 4 点格挡。等原版消耗流程跑完再给，避免顺序问题。</summary>
     [HarmonyPatch(typeof(CardCmd), nameof(CardCmd.Exhaust))]
     private static class BlockOnExhaust

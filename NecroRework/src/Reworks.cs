@@ -50,6 +50,15 @@ internal static class Reworks
                 .WithMultiplier((CardModel card, Creature _) => CombatStats.SummonDamageBonus(card)),
         ],
 
+        // 守护者：10（升级 15）点伤害，本场战斗中每召唤 2 点 +2 伤害、每消耗 1 张牌 +2 伤害
+        [typeof(Protector)] = _ =>
+        [
+            new CalculationBaseVar(10m),
+            new ExtraDamageVar(1m).FromOsty(),
+            new CalculatedDamageVar(ValueProp.Move).FromOsty()
+                .WithMultiplier((CardModel card, Creature _) => ProtectorBonus(card)),
+        ],
+
         // 剥夺：伤害 10（升级 13）→ 11（升级 14）；灵魂部分保持原版（升级后给灵魂+）
         [typeof(Reave)] = _ => [new DamageVar(11m, ValueProp.Move), new CardsVar(1)],
 
@@ -205,8 +214,8 @@ internal static class Reworks
         [typeof(Haunt)] = _ => [new HpLossVar(8m)],
 
         // 钙化：奥斯提攻击加成 4（升级 6）→ 3（升级 5）；
-        //       并额外记录「每次攻击给你 2（升级 3）格挡」
-        [typeof(Calcify)] = _ => [new PowerVar<CalcifyPower>(3m), new BlockVar(2m, ValueProp.Unpowered)],
+        //       并额外记录「每次攻击给你 3（升级 4）格挡」
+        [typeof(Calcify)] = _ => [new PowerVar<CalcifyPower>(3m), new BlockVar(3m, ValueProp.Unpowered)],
 
         // 洁净：召唤 3（升级 5）→ 改成「移除 6（升级 9）层灾厄」，数值用灾厄变量显示
         [typeof(Cleanse)] = _ => [new PowerVar<DoomPower>(9m)],
@@ -273,11 +282,37 @@ internal static class Reworks
         [typeof(Reanimate)] = _ => [new SummonVar(10m)],
     };
 
-    /// <summary>猛晃：奥斯提每累计这么多伤害，就多打一次。</summary>
+    /// <summary>猛晃：奥斯提每累计这么多伤害，就多打一次（未升级）。</summary>
     private const int HitsPerFifteen = 15;
+
+    /// <summary>猛晃升级后：门槛降到 14。</summary>
+    private const int HitsPerFourteen = 14;
 
     /// <summary>碎骨加强模式的触发门槛：奥斯提至少这么多生命值。</summary>
     private const decimal EmpoweredBoneShardsHp = 24m;
+
+    /// <summary>
+    /// 守护者的额外伤害：本场战斗中每召唤 2 点 +2，每消耗 1 张牌 +2。
+    /// 图鉴里（canonical / 无战斗状态）一律按 0 算。
+    /// </summary>
+    private static decimal ProtectorBonus(CardModel card)
+    {
+        try
+        {
+            if (card.IsCanonical) return 0m;
+            if (card.Owner?.PlayerCombatState == null) return 0m;
+
+            decimal summon = CombatStats.TotalSummon(card);
+            decimal perSummon = Math.Floor(summon / 2m) * 2m;
+            decimal perExhaust = ExhaustCountTracker.TotalFor(card.Owner) * 2m;
+            return perSummon + perExhaust;
+        }
+        catch (Exception e)
+        {
+            Main.Log.Error($"[{Main.ModId}] 守护者伤害计算失败: {e}");
+            return 0m;
+        }
+    }
 
     /// <summary>
     /// 猛晃的段数：1 + 本场战斗中奥斯提累计造成的伤害 / 15。
@@ -305,7 +340,9 @@ internal static class Reworks
                 return 1;
             }
 
-            return 1 + total / HitsPerFifteen;
+            // 升级后门槛从 15 降到 14
+            int threshold = card.IsUpgraded ? HitsPerFourteen : HitsPerFifteen;
+            return 1 + total / threshold;
         }
         catch (Exception)
         {
@@ -1332,7 +1369,7 @@ internal static class Reworks
         // 纠缠：生命流失固定 8 不涨，升级只把生成的灵魂换成灵魂+
         [typeof(Haunt)] = _ => { },
 
-        // 钙化：原版只 +2 伤害；现在伤害 +2（3 → 5）、格挡 +1（2 → 3）
+        // 钙化：原版只 +2 伤害；现在伤害 +2（3 → 5）、格挡 +1（3 → 4）
         [typeof(Calcify)] = card =>
         {
             card.DynamicVars["CalcifyPower"].UpgradeValueBy(2m);

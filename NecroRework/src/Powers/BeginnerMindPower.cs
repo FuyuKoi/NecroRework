@@ -16,7 +16,7 @@ namespace NecroRework.Powers;
 /// </summary>
 public sealed class BeginnerMindPower : PowerModel
 {
-    private const decimal BlockPerTurn = 6m;
+    private const decimal BlockPerTurn = 5m;
     private const int RecallCount = 3;
 
     public override PowerType Type => PowerType.Buff;
