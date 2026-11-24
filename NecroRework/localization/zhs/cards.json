@@ -116,5 +116,6 @@
   "REBORN_ANEW.title": "脱胎换骨",
   "REBORN_ANEW.description": "所有玩家的可叠加[gold]负面效果[/gold]各减少1层。",
   "PROTECTOR.description": "[gold]奥斯提[/gold]造成{CalculatedDamage:diff()}点伤害。\n本场战斗中你每[gold]召唤[/gold]2，以及每消耗1张牌，这张牌就额外造成2点伤害。",
-  "DRAIN_POWER.description": "造成{Damage:diff()}点伤害。\n{IfUpgraded:show:升级你[gold]弃牌堆[/gold]中所有可升级的牌。|随机[gold]升级[/gold]你[gold]弃牌堆[/gold]中的{Cards:diff()}张牌。}"
+  "DRAIN_POWER.description": "造成{Damage:diff()}点伤害。\n{IfUpgraded:show:升级你[gold]弃牌堆[/gold]中所有可升级的牌。|随机[gold]升级[/gold]你[gold]弃牌堆[/gold]中的{Cards:diff()}张牌。}",
+  "GLIMPSE_BEYOND.description": "在所有玩家的[gold]抽牌堆[/gold]中加入{Cards:diff()}张带有随机附魔的[gold]灵魂[/gold]。"
 }

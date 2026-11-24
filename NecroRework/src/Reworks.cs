@@ -2,6 +2,7 @@ using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Combat.History.Entries;
 using MegaCrit.Sts2.Core.Commands;
+using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Extensions;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -62,6 +63,27 @@ internal static class Reworks
 
         // 剥夺：伤害 10（升级 13）→ 11（升级 14）；灵魂部分保持原版（升级后给灵魂+）
         [typeof(Reave)] = _ => [new DamageVar(11m, ValueProp.Move), new CardsVar(1)],
+
+        // 死亡之舞：格挡 4（升级 6）→ 5（升级 7），升级仍 +2
+        [typeof(DanseMacabre)] = _ => [new PowerVar<DanseMacabrePower>(5m), new EnergyVar(2)],
+
+        // 取回：奥斯提伤害 3（升级 6）→ 4（升级 7），升级仍 +3
+        [typeof(Fetch)] = _ => [new OstyDamageVar(4m, ValueProp.Move), new CardsVar(1)],
+
+        // 彼岸一瞥：灵魂张数 3（升级 4）→ 4（升级 5）
+        [typeof(GlimpseBeyond)] = _ => [new CardsVar(4)],
+
+        // 巨镰：成长 5（升级 7）→ 6（升级 8）；基础伤害仍由卡自身 CurrentDamage 维护
+        [typeof(TheScythe)] = card => [new DamageVar(((TheScythe)card).CurrentDamage, ValueProp.Move), new IntVar("Increase", 6m)],
+
+        // 榨取：每张其他奥斯提攻击牌 5（升级 6）→ 6（升级 7）；基础伤害 25 不变
+        [typeof(Squeeze)] = _ =>
+        [
+            new CalculationBaseVar(25m),
+            new ExtraDamageVar(6m).FromOsty(),
+            new CalculatedDamageVar(ValueProp.Move).FromOsty()
+                .WithMultiplier((CardModel card, Creature _) => SqueezeCount(card)),
+        ],
 
         // 玷污：伤害 13（升级 17）→ 12（升级 16）；额外转移至多 6（升级 8）层灾厄
         [typeof(Defile)] = _ => [new DamageVar(13m, ValueProp.Move), new PowerVar<DoomPower>(12m)],
@@ -448,6 +470,25 @@ internal static class Reworks
         }
 
         return Math.Min(budget, Math.Max(0, available));
+    }
+
+    /// <summary>
+    /// 榨取：牌组/手牌里「别的奥斯提攻击牌」有几张（原版就是按这个乘算额外伤害）。
+    /// </summary>
+    private static int SqueezeCount(CardModel card)
+    {
+        if (card.IsCanonical)
+        {
+            return 0;
+        }
+
+        PlayerCombatState? combat = card.Owner?.PlayerCombatState;
+        if (combat == null)
+        {
+            return 0;
+        }
+
+        return combat.AllCards.Count(c => c != card && c.Tags.Contains(CardTag.OstyAttack));
     }
 
     /// <summary>
@@ -969,6 +1010,36 @@ internal static class Reworks
             {
                 CardCmd.Upgrade(pick);
                 CardCmd.Preview(pick);
+            }
+        },
+
+        // 彼岸一瞥：给所有玩家的抽牌堆加入灵魂，每张灵魂附一个随机（非攻击类）附魔
+        [typeof(GlimpseBeyond)] = async (card, ctx, play) =>
+        {
+            await CreatureCmd.TriggerAnim(card.Owner.Creature, "Cast", card.Owner.Character.CastAnimDelay);
+
+            List<Creature> teammates = card.CombatState.GetTeammatesOf(card.Owner.Creature)
+                .Where(c => c != null && c.IsAlive && c.IsPlayer)
+                .ToList();
+
+            foreach (Creature creature in teammates)
+            {
+                Player? ally = creature.Player;
+                if (ally == null) continue;
+
+                List<Soul> souls = Soul.Create(ally, card.DynamicVars.Cards.IntValue, card.CombatState).ToList();
+                foreach (Soul soul in souls)
+                {
+                    SoulEnchantmentRoll.ApplyRandom(soul, card.Owner);
+                }
+
+                IReadOnlyList<CardPileAddResult> results = await CardPileCmd.AddGeneratedCardsToCombat(
+                    souls, PileType.Draw, card.Owner, CardPilePosition.Random);
+
+                if (LocalContext.IsMe(creature))
+                {
+                    CardCmd.PreviewCardPileAdd(results);
+                }
             }
         },
 
