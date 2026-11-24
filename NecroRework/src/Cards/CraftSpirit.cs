@@ -10,7 +10,6 @@ namespace NecroRework.Cards;
 /// <summary>
 /// 造灵：1 费技能（普通品质，升级后 0 费）。
 /// 奥斯提存活时：他失去 7 点生命值、承受你的 9 点灾厄，你手牌里入手一张灵魂（升级后是灵魂+）。
-/// 如果施放时他身上已经有灾厄，他再失去 4 点生命值和 20 点生命值上限。
 /// </summary>
 public sealed class CraftSpirit : CardModel
 {
@@ -18,8 +17,6 @@ public sealed class CraftSpirit : CardModel
 
     private const decimal OstyHpLoss = 7m;
     private const decimal DoomToOsty = 9m;
-    private const decimal ExtraHpLoss = 4m;
-    private const decimal MaxHpLoss = 20m;
 
     public CraftSpirit()
         : base(1, CardType.Skill, CardRarity.Common, TargetType.Self)
@@ -38,23 +35,13 @@ public sealed class CraftSpirit : CardModel
 
         await CreatureCmd.TriggerAnim(Owner.Creature, "Cast", Owner.Character.CastAnimDelay);
 
-        // 「释放时他已经有灾厄」——按施放瞬间判定，后面的伤害不影响这个条件。
-        var hadDoom = DoomUtil.DoomOf(osty) > 0;
-
+        // 只掉血、只转移灾厄；「已有灾厄时的额外惩罚」那一段已按需求去掉。
         await CreatureCmd.Damage(choiceContext, osty, OstyHpLoss, HpLossProps, this, cardPlay);
 
         if (osty.IsAlive)
         {
             // 他得到你的 3 点灾厄：从角色身上扣，落到奥斯提身上只算一次施加。
             await DoomUtil.TransferToOsty(choiceContext, this, DoomToOsty);
-
-            if (hadDoom)
-            {
-                await CreatureCmd.Damage(choiceContext, osty, ExtraHpLoss, HpLossProps, this, cardPlay);
-
-                if (osty.IsAlive)
-                    await CreatureCmd.LoseMaxHp(choiceContext, osty, MaxHpLoss, this);
-            }
         }
 
         var souls = Soul.Create(Owner, 1, CombatState);

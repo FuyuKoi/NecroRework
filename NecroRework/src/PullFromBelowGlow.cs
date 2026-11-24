@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -85,13 +85,14 @@ internal static class PullFromBelowGlow
             return;
         }
 
-        // 亡魂牵引优先（深蓝）；没有的话再看初心（粉色，固定最左 3 张虚无牌）
+        // 亡魂牵引优先（深蓝，前 stacks 张）；初心接在它后面（粉色，再 3 张），
+        // 两者同时存在时是「第 1 张蓝 → 第 2~4 张粉」，不会因为蓝色占了一张就只剩两张粉。
         Color color;
         if (stacks > 0 && rank < stacks)
         {
             color = GlowColor;
         }
-        else if (beginnerMind && rank < BeginnerMindHighlights)
+        else if (beginnerMind && rank < stacks + BeginnerMindHighlights)
         {
             color = BeginnerMindColor;
         }

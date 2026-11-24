@@ -86,6 +86,9 @@ internal static class Reworks
         // 根除：11（14）→ 14（17），升级仍 +3
         [typeof(Eradicate)] = _ => [new DamageVar(14m, ValueProp.Move)],
 
+        // 收割：27（33）→ 33（39），升级仍 +6
+        [typeof(Reap)] = _ => [new DamageVar(33m, ValueProp.Move)],
+
         // 击掌：11（13）→ 14（16），升级仍 +2（易伤仍 1 → 2）
         [typeof(HighFive)] = _ => [new OstyDamageVar(14m, ValueProp.Move), new PowerVar<VulnerablePower>(2m)],
 
@@ -185,8 +188,8 @@ internal static class Reworks
         // 领会：抽 3（升级 4）→ 先获得 6 层灾厄，再抽 3（升级 4）
         [typeof(Parse)] = _ => [new CardsVar(3), new PowerVar<DoomPower>(6m)],
 
-        // 挽歌：每次召唤 3（升级 4）→ 5（升级 6）；灵魂张数改为 X+2（Play 里加）
-        [typeof(Dirge)] = _ => [new SummonVar(6m)],
+        // 挽歌：每次召唤 3（升级 4）→ 5（升级 6），重复 X 次；灵魂张数改为 X+2（Play 里加）
+        [typeof(Dirge)] = _ => [new SummonVar(5m)],
 
         // 增生：额外挂一个「实际能拿多少格挡」的展示变量（含这次治疗 + 本回合已回的血，再吃敏捷/脆弱）
         // 注意：CalculatedBlockVar 读的是 CalculationBase(键 CalculationBase) + CalculationExtra(键 CalculationExtra)，
@@ -1428,6 +1431,12 @@ internal static class Reworks
 
         // 重构：原本只有「消耗」，现在再加「保留」（升级仍会去掉消耗）
         [typeof(Transfigure)] = [CardKeyword.Exhaust, CardKeyword.Retain],
+
+        // 挽歌：取消「消耗」（升级前后都没有）
+        [typeof(Dirge)] = [],
+
+        // 幽冥之界（原版多人卡）：额外加「保留」（升级仍会去掉消耗，保留留下）
+        [typeof(Underworld)] = [CardKeyword.Exhaust, CardKeyword.Retain],
     };
 
     /// <summary>

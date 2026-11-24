@@ -593,13 +593,29 @@ internal static class IntentPreview
 	{
 		try
 		{
+			// 首选：直接看这只怪这一步到底有几个意图。
+			// 不能只看父节点里的子节点数量 —— 多人局里同一个容器可能同时装着别的敌人/别的玩家的意图，
+			// 那样「单独攻击的敌人」也会被算成复合意图（表现就是数字跑到上方且变小）。
+			Creature? owner = IntentOwner(node);
+			if (owner?.Monster?.NextMove?.Intents is { } intents)
+			{
+				return intents.Count <= 1;
+			}
+		}
+		catch
+		{
+			// 反射失败就退回下面的可见子节点计数
+		}
+
+		try
+		{
 			Node? parent = node.GetParent();
 			if (parent == null) return true;
 
 			int count = 0;
 			foreach (Node child in parent.GetChildren())
 			{
-				if (child is NIntent candidate && GodotObject.IsInstanceValid(candidate))
+				if (child is NIntent candidate && GodotObject.IsInstanceValid(candidate) && candidate.Visible)
 				{
 					count++;
 					if (count > 1) return false;
@@ -611,6 +627,19 @@ internal static class IntentPreview
 		catch
 		{
 			return true;
+		}
+	}
+
+	/// <summary>取意图节点对应的生物（NIntent 的私有字段 _owner）。</summary>
+	private static Creature? IntentOwner(NIntent node)
+	{
+		try
+		{
+			return OwnerRef(node);
+		}
+		catch
+		{
+			return null;
 		}
 	}
 
@@ -643,16 +672,16 @@ internal static class IntentPreview
 				VerticalAlignment = VerticalAlignment.Center,
 				MouseFilter = Control.MouseFilterEnum.Ignore,
 			};
-			shown.Position = new Vector2(-16f, -40f);
-			shown.Size = new Vector2(96f, 27f);
-			// 复合意图时放到图标上方，字号放大到 1.5 倍（原版数字是 22）。
-			shown.AddThemeFontSizeOverride("font_size", 27);
-			shown.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.6f));
-			shown.AddThemeConstantOverride("outline_size", 9);
 			node.AddChild(shown);
 			ExtraLabels[node] = shown;
 		}
 
+		// 复合意图时数字挪到图标上方：字号取原版意图数字（22）的 90% ≈ 20，水平居中在 64 宽的图标上。
+		shown.Position = new Vector2(-8f, -26f);
+		shown.Size = new Vector2(80f, 20f);
+		shown.AddThemeFontSizeOverride("font_size", 20);
+		shown.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.6f));
+		shown.AddThemeConstantOverride("outline_size", 8);
 		shown.Text = "（" + suffix + "）";
 		shown.AddThemeColorOverride("font_color", safe ? PreviewCyan : PreviewRed);
 		shown.Visible = true;

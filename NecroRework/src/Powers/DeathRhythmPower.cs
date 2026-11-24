@@ -46,6 +46,10 @@ public sealed class DeathRhythmPower : PowerModel
     {
         if (Owner == null || !Owner.IsAlive) return;
 
+        // 只算「自己打出的牌」：多人局里队友出牌也会走同一个 AfterCardPlayed 钩子，
+        // 不判持有者的话，队友每打一张牌我们都会替自己吃一次伤害。
+        if (cardPlay.Player?.Creature != Owner && cardPlay.Card.Owner?.Creature != Owner) return;
+
         if (_sourceCard != null && ReferenceEquals(cardPlay.Card, _sourceCard))
         {
             _sourceCard = null;

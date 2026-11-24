@@ -344,9 +344,18 @@ internal static class PullFromBelowRedirect
             _expectCard = null;
 
             // 别的 mod（RitsuLib / BaseLib 都给 CardCmd.AutoPlay 挂了前缀）可能把这一发跳过。
-            // 那就自己按「打出这张牌」的最小流程再走一遍，保证亡魂牵引不依赖 AutoPlay。
+            // 单人局：自己按「打出这张牌」的最小流程再走一遍，保证亡魂牵引不依赖 AutoPlay。
+            // 联机：只走引擎官方的 AutoPlay 路径；一旦它被跳过，就按原版语义直接进消耗堆，
+            //       绝不在这里做只有本机执行的「自建打出」，否则两台机器会各算各的。
             if (!played || card.Pile?.Type == PileType.Play)
             {
+                if (MultiplayerMode.IsMultiplayer(card))
+                {
+                    Main.Log.Warn($"[{Main.ModId}] 亡魂牵引（联机安全模式）：{card.Id} 的 CardCmd.AutoPlay 被跳过，按原版语义放进消耗堆");
+                    await CardPileCmd.Add(card, PileType.Exhaust, CardPilePosition.Bottom);
+                    return null;
+                }
+
                 Main.Log.Warn($"[{Main.ModId}] 亡魂牵引：{card.Id} 的 CardCmd.AutoPlay 被别的补丁跳过，改走自建打出流程");
                 await PlayWithoutAutoPlay(card);
             }

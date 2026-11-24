@@ -32,7 +32,9 @@ public sealed class GhostLantern : CardModel
     protected override bool HasEnergyCostX => true;
 
     protected override IEnumerable<DynamicVar> CanonicalVars =>
-        [new BlockVar(BlockPerX, ValueProp.Move)];
+        [new BlockVar(BlockPerX, ValueProp.Move),
+         // 只为卡面能量图标存在（每触发一次给 1 点费用），数值固定 1
+         new EnergyVar(1)];
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {

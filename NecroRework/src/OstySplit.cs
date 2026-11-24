@@ -51,9 +51,14 @@ internal static class OstySplit
     /// <summary>Damage 包装的重入深度。>0 表示正处在自己的包装里，必须直接走原版。</summary>
     private static int _depth;
 
-    /// <summary>本次伤害已被标记为「要分摊」，等待在 AfterOsty 阶段消费。</summary>
-    private static bool _armed;
-    private static Creature _armedPlayer;
+    /// <summary>
+    /// 本次伤害里「已经被标记要分摊」的玩家生物。
+    ///
+    /// 多人局必须用集合而不是单个标记：`Hook.ModifyUnblockedDamageTarget` 会把**所有**监听者都调一遍，
+    /// 而且两个玩家的奥斯提各有一个 `DieForYouPower`。以前这里是全局单个 `_armed`，第二个玩家的
+    /// `DieForYouPower` 一进来就把标记清掉了 → 只有一个人的奥斯提会承伤。
+    /// </summary>
+    private static readonly HashSet<Creature> ArmedPlayers = new();
 
     /// <summary>本次伤害里每个目标原本的命中特效，用来让我们自己结算的那一段也播特效。</summary>
     private static Dictionary<Creature, (string Vfx, bool Center)> _vfxMap = new();
@@ -67,8 +72,6 @@ internal static class OstySplit
         [HarmonyPrefix]
         private static bool Prefix(DieForYouPower __instance, Creature target, ValueProp props, ref Creature __result)
         {
-            _armed = false;
-
             if (!Enabled) return true;
             if (_applyingShare)
             {
@@ -84,9 +87,9 @@ internal static class OstySplit
             // 「吸引仇恨」期间不分摊：让原版把整发伤害都交给奥斯提
             if (osty.HasPower<OstyGuardPower>()) return true;
 
-            // 不交给原版转移：标记后由我们在 AfterOsty 阶段把这一发拆成两半
-            _armed = true;
-            _armedPlayer = target;
+            // 不交给原版转移：标记后由我们在 AfterOsty 阶段把这一发拆成两半。
+            // 注意这里**不能**清空别人的标记（多人局里另一个玩家的奥斯提也会走到这个前缀）。
+            ArmedPlayers.Add(target);
             __result = target;
             return false;
         }
@@ -101,13 +104,12 @@ internal static class OstySplit
         private static bool Prefix(AbstractModel __instance, Creature target, decimal amount, ValueProp props,
                                    Creature dealer, CardModel cardSource, ref decimal __result)
         {
-            if (!_armed) return true;
-            if (target != _armedPlayer) return true;
+            if (!ArmedPlayers.Contains(target)) return true;
             if (!props.IsPoweredAttack()) return true;
 
-            _armed = false;
+            ArmedPlayers.Remove(target);
 
-            var player = _armedPlayer;
+            var player = target;
             if (player == null)
             {
                 __result = amount;
@@ -248,7 +250,7 @@ internal static class OstySplit
 
                 _vfxMap = BuildVfxMap(targetData);
                 _currentHookType = hookType;
-                _armed = false;
+                ArmedPlayers.Clear();
                 Pending.Clear();
 
                 IEnumerable<DamageResult> result;

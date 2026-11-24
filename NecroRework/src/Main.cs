@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Models.CardPools;
@@ -31,6 +31,11 @@ public static class Main
             OstySplit.Enabled = !File.Exists(Path.Combine(ModDirectory, "no_osty_split.flag"));
             if (!OstySplit.Enabled)
                 Log.Warn($"[{ModId}] 检测到 no_osty_split.flag：奥斯提 50% 分摊已关闭");
+
+            // 联机安全模式：mp_safe.flag 存在时强制按联机规则运行（单人局也生效，方便排查）
+            MultiplayerMode.ForcedByFlag = File.Exists(Path.Combine(ModDirectory, "mp_safe.flag"));
+            if (MultiplayerMode.ForcedByFlag)
+                Log.Warn($"[{ModId}] 检测到 mp_safe.flag：强制开启联机安全模式");
 
             // 1) 特性式补丁（本地化、飘荡、奥斯提 50% 等）
             harmony.PatchAll(Assembly.GetExecutingAssembly());
