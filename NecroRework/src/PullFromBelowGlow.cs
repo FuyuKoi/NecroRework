@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -6,6 +6,7 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.Cards.Holders;
 using NecroRework.Powers;
 
+using NecroRework.Settings;
 namespace NecroRework;
 
 /// <summary>
@@ -55,6 +56,8 @@ internal static class PullFromBelowGlow
 
     private static void Apply(NHandCardHolder holder)
     {
+        if (!NecroSettings.CardReworks) return;
+
         var node = holder.CardNode;
         var card = holder.CardModel;
         var owner = card?.Owner;

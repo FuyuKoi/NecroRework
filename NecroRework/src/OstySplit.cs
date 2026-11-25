@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -10,6 +10,7 @@ using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.ValueProps;
 using NecroRework.Powers;
 
+using NecroRework.Settings;
 namespace NecroRework;
 
 /// <summary>
@@ -41,7 +42,14 @@ internal static class OstySplit
     /// <summary>
     /// 应急开关：mod 目录下放一个 no_osty_split.flag 就整体关闭 50% 分摊（其它功能不受影响）。
     /// </summary>
-    internal static bool Enabled = true;
+    private static bool _disabledByFlag;
+
+    /// <summary>设置页的「奥斯提分摊一半伤害」+ 应急 flag 文件共同决定是否生效。</summary>
+    internal static bool Enabled
+    {
+        get => NecroSettings.OstySplit && !_disabledByFlag;
+        set => _disabledByFlag = !value;
+    }
 
     private static readonly List<Split> Pending = new();
 

@@ -1,8 +1,9 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Hooks;
 using MegaCrit.Sts2.Core.Models;
 
+using NecroRework.Settings;
 namespace NecroRework;
 
 /// <summary>
@@ -43,6 +44,8 @@ public static class CostPreview
 
     private static bool SkipPrefix(CardModel card, decimal originalCost, ref decimal __result)
     {
+        if (!NecroSettings.ExtraCards) return true;
+
         if (!ShouldRestore(card)) return true;
 
         __result = originalCost;

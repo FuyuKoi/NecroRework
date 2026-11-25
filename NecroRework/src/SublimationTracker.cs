@@ -1,9 +1,10 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Models;
 using NecroRework.Cards;
 
+using NecroRework.Settings;
 namespace NecroRework;
 
 /// <summary>
@@ -55,6 +56,8 @@ internal static class SublimationTracker
     /// <summary>打出过一次之后，每次再抽到它就永久 +1 费。</summary>
     private static void DrawnPostfix(CardModel __instance)
     {
+        if (!NecroSettings.CardReworks) return;
+
         try
         {
             if (__instance is not Sublimation) return;
@@ -72,6 +75,8 @@ internal static class SublimationTracker
     /// <summary>任何耗能变化都折算成伤害步进。</summary>
     private static void CostEvaluatedPostfix(CardEnergyCost __instance, CostModifiers modifiers, int __result)
     {
+        if (!NecroSettings.CardReworks) return;
+
         try
         {
             if (modifiers != CostModifiers.All) return;

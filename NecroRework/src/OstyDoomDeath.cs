@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -10,6 +10,7 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Monsters;
 using MegaCrit.Sts2.Core.Models.Powers;
 
+using NecroRework.Settings;
 namespace NecroRework;
 
 /// <summary>
@@ -92,6 +93,8 @@ internal static class OstyDoomDeath
 
 	private static async Task AfterSideTurnEndPostfix(Task __result, ICombatState combatState, CombatSide side)
 	{
+		if (!NecroSettings.CardReworks) return;
+
 		await __result;
 
 		if (side != CombatSide.Player || combatState == null)

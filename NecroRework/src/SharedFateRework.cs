@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Combat;
@@ -11,6 +11,7 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Powers;
 using NecroRework.Powers;
 
+using NecroRework.Settings;
 namespace NecroRework;
 
 /// <summary>
@@ -34,6 +35,8 @@ internal static class SharedFateRework
 
     private static void AfterPowerAmountChangedPostfix(PowerModel power, decimal amount)
     {
+        if (!NecroSettings.CardReworks) return;
+
         try
         {
             if (power is not StrengthPower || amount <= 0m) return;

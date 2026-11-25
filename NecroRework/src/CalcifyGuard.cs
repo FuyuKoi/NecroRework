@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
@@ -10,6 +10,7 @@ using MegaCrit.Sts2.Core.Models.Monsters;
 using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.ValueProps;
 
+using NecroRework.Settings;
 namespace NecroRework;
 
 /// <summary>
@@ -45,6 +46,8 @@ internal static class CalcifyGuard
 
     private static void AfterAttackPostfix(AttackCommand command)
     {
+        if (!NecroSettings.CardReworks) return;
+
         // Harmony 不会 await 返回值，这里自己起一个任务，异常自己吃掉
         _ = GrantAsync(command);
     }

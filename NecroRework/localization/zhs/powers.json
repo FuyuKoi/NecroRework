@@ -16,7 +16,7 @@
   "COUNTDOWN_REWORK_POWER.title": "倒数计时",
   "COUNTDOWN_REWORK_POWER.description": "在你的回合开始时，给予随机敌人{Amount}层[gold]灾厄[/gold]，然后你失去等量[gold]灾厄[/gold]。",
   "GHOST_LANTERN_POWER.title": "冥灯",
-  "GHOST_LANTERN_POWER.description": "你每回合抽到的前两张[gold]虚无[/gold]牌会各给予你1点[gold]费用[/gold]。\n（还剩{Amount}回合）",
+  "GHOST_LANTERN_POWER.description": "你每回合抽到的前两张[gold]虚无[/gold]牌会各给予你{Energy:energyIcons()}。\n（还剩{Amount}回合）",
   "SIC_EM_COUNTER_POWER.title": "紧追不放的计数",
   "SIC_EM_COUNTER_POWER.description": "[gold]奥斯提[/gold]再攻击这名敌人{Amount}次后，就会施加[gold]易伤[/gold]。",
   "LIFE_AND_DEATH_POWER.title": "生与死",

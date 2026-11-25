@@ -1,10 +1,11 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Hooks;
 using MegaCrit.Sts2.Core.Models;
 
+using NecroRework.Settings;
 namespace NecroRework;
 
 /// <summary>
@@ -46,6 +47,8 @@ internal static class MendWard
 
     private static bool ShouldEtherealTriggerPrefix(CardModel card, ref bool __result)
     {
+        if (!NecroSettings.ExtraCards) return true;
+
         if (card is null || !Suppressed.Contains(card))
         {
             return true;

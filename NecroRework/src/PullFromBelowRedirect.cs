@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -9,6 +9,7 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.ValueProps;
 using NecroRework.Powers;
 
+using NecroRework.Settings;
 namespace NecroRework;
 
 /// <summary>
@@ -112,6 +113,8 @@ internal static class PullFromBelowRedirect
     /// </summary>
     private static bool ExhaustAddPrefix(CardModel card, PileType newPileType, ref Task<CardPileAddResult> __result)
     {
+        if (!NecroSettings.CardReworks) return true;
+
         try
         {
             if (newPileType != PileType.Exhaust) return true;
@@ -193,6 +196,8 @@ internal static class PullFromBelowRedirect
 
     private static bool ExhaustPrefix(CardModel card, bool causedByEthereal, ref Task<CardPileAddResult?> __result)
     {
+        if (!NecroSettings.CardReworks) return true;
+
         try
         {
             if (_busy) return true;

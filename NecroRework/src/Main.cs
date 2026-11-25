@@ -1,10 +1,11 @@
-using System.Reflection;
+﻿using System.Reflection;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Models.CardPools;
 using MegaCrit.Sts2.Core.Modding;
 using NecroRework.Cards;
 
+using NecroRework.Settings;
 namespace NecroRework;
 
 /// <summary>
@@ -57,6 +58,12 @@ public static class Main
     /// </summary>
     private static void RegisterContent()
     {
+        if (!NecroSettings.ExtraCards)
+        {
+            Log.Info($"[{ModId}] 设置里关闭了「拓展卡牌」：本次不把自制卡加入卡池");
+            return;
+        }
+
         // 调试卡 DriftTestCard 不再入池（避免被当作奖励抽到）；类仍保留，可用控制台 `card DRIFT_TEST_CARD` 调出。
 
         // 回眸：普通品质技能牌，跟着白卡一起出现在卡牌奖励里

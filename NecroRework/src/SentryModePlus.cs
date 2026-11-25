@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using HarmonyLib;
@@ -12,6 +12,7 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Cards;
 using MegaCrit.Sts2.Core.Models.Powers;
 
+using NecroRework.Settings;
 namespace NecroRework;
 
 /// <summary>
@@ -71,6 +72,8 @@ internal static class SentryModePlus
     private static bool BeforeHandDrawPrefix(SentryModePower __instance, Player player,
         PlayerChoiceContext choiceContext, ICombatState combatState, ref Task __result)
     {
+        if (!NecroSettings.CardReworks) return true;
+
         if (!IsMarked(__instance)) return true;
 
         __result = GenerateUpgraded(__instance, player, combatState);

@@ -4,6 +4,7 @@ using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Powers;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 
 namespace NecroRework.Powers;
@@ -36,6 +37,9 @@ public sealed class GhostLanternPower : PowerModel
 
     /// <summary>悬停里显示的读数 = 剩余回合数。</summary>
     public override int DisplayAmount => Amount;
+
+    /// <summary>只为了卡面/悬停里的能量图标（{Energy:energyIcons()}），不参与任何数值计算。</summary>
+    protected override IEnumerable<DynamicVar> CanonicalVars => [new EnergyVar(EnergyPerTrigger)];
 
     protected override object InitInternalData() => new Data();
 

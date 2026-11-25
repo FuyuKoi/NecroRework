@@ -35,6 +35,19 @@
       <Private>false</Private>
       <Condition>Exists('$(Sts2Dir)\mods\BaseLib\BaseLib.dll')</Condition>
     </Reference>
+    <!-- RitsuLib：只为了做设置界面（属性驱动），dll 从 lib\ 引用、不打进包里 -->
+    <Reference Include="STS2-RitsuLib">
+      <HintPath>lib\STS2-RitsuLib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="STS2-RitsuLib.Shared">
+      <HintPath>lib\STS2-RitsuLib.Shared.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="STS2-RitsuLib.Settings">
+      <HintPath>lib\STS2-RitsuLib.Settings.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>

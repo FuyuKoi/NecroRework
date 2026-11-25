@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
@@ -6,6 +6,7 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.ValueProps;
 using NecroRework.Enchantments;
 
+using NecroRework.Settings;
 namespace NecroRework;
 
 /// <summary>
@@ -120,6 +121,8 @@ internal static class DriftPatches
         private static bool Prefix(PlayerChoiceContext choiceContext, CardModel card, bool causedByEthereal,
                                    bool skipVisuals, ref Task<CardPileAddResult?> __result)
         {
+            if (!NecroSettings.CardReworks) return true;
+
             // 这段逻辑已经搬到 PullFromBelowRedirect.ExhaustAddPrefix（CardPileCmd.Add 的消耗漏斗）：
             // 回合结束时虚无牌自烧不走 CardCmd.Exhaust，挂在这里会漏掉一半情况，
             // 两处都挂又会给两次格挡。这里保留成空操作，只作为「曾经挂在哪里」的备忘。

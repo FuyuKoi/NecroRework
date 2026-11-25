@@ -1,9 +1,10 @@
-using Godot;
+﻿using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.Cards;
 using NecroRework.Cards;
 
+using NecroRework.Settings;
 namespace NecroRework;
 
 /// <summary>
@@ -89,6 +90,8 @@ internal static class CardArt
     /// <summary>返回 false 表示我们自己给了贴图；true 表示交回原版逻辑。</summary>
     private static bool PortraitPrefix(CardModel __instance, ref Texture2D __result)
     {
+        if (!NecroSettings.CardArt) return true;
+
         try
         {
             Texture2D texture = Resolve(__instance, out bool handled);
@@ -122,6 +125,8 @@ internal static class CardArt
 
     private static void Apply(NCard node)
     {
+        if (!NecroSettings.CardArt) return;
+
         try
         {
             CardModel model = node?.Model;

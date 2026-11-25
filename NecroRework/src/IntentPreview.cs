@@ -19,6 +19,7 @@ using MegaCrit.Sts2.Core.ValueProps;
 using NecroRework.Enchantments;
 using NecroRework.Powers;
 
+using NecroRework.Settings;
 namespace NecroRework;
 
 /// <summary>
@@ -141,6 +142,8 @@ internal static class IntentPreview
 	/// <summary>按敌人行动顺序整体模拟一遍，然后把结果写回所有意图节点。</summary>
 	private static void Recompute(NIntent source)
 	{
+	    if (!NecroSettings.IntentPreview) return;
+
 		// 玩家点了结束回合之后：不再重算，只把上一轮算好的数字贴回去，避免敌人回合里数字乱跳
 		if (FreezeGate.IsFrozen())
 		{
@@ -676,12 +679,13 @@ internal static class IntentPreview
 			ExtraLabels[node] = shown;
 		}
 
-		// 复合意图时数字挪到图标上方：字号取原版意图数字（22）的 90% ≈ 20，水平居中在 64 宽的图标上。
-		shown.Position = new Vector2(-8f, -26f);
-		shown.Size = new Vector2(80f, 20f);
-		shown.AddThemeFontSizeOverride("font_size", 20);
+		// 复合意图时数字挪到图标上方：字号取原版意图数字（22）的 90% ≈ 20，再按需求放大 1.3 倍 → 26；
+		// 标签宽度/高度同比放大，x 用「宽的一半」抵消，保证水平仍居中在 64 宽的图标上。
+		shown.Position = new Vector2(-20f, -33f);
+		shown.Size = new Vector2(104f, 26f);
+		shown.AddThemeFontSizeOverride("font_size", 26);
 		shown.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.6f));
-		shown.AddThemeConstantOverride("outline_size", 8);
+		shown.AddThemeConstantOverride("outline_size", 9);
 		shown.Text = "（" + suffix + "）";
 		shown.AddThemeColorOverride("font_color", safe ? PreviewCyan : PreviewRed);
 		shown.Visible = true;

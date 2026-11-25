@@ -5,6 +5,7 @@ using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 using NecroRework.Stats;
 
+using NecroRework.Settings;
 namespace NecroRework;
 
 /// <summary>
@@ -15,14 +16,21 @@ internal static class PatchInstaller
 {
     public static void Install(Harmony harmony)
     {
-        var varsPostfix = new HarmonyMethod(typeof(Patches), nameof(Patches.VarsPostfix));
-        var playPrefix = new HarmonyMethod(typeof(Patches), nameof(Patches.PlayPrefix));
-        var upgradePostfix = new HarmonyMethod(typeof(Patches), nameof(Patches.UpgradePostfix));
-        var upgradePrefix = new HarmonyMethod(typeof(Patches), nameof(Patches.UpgradePrefix));
-        var keywordsPrefix = new HarmonyMethod(typeof(Patches), nameof(Patches.KeywordsPrefix));
-        var tipsPrefix = new HarmonyMethod(typeof(Patches), nameof(Patches.TipsPrefix));
-        var costPrefix = new HarmonyMethod(typeof(Patches), nameof(Patches.CostPrefix));
-        var typePostfix = new HarmonyMethod(typeof(Patches), nameof(Patches.TypePostfix));
+        // 最高优先级开关：开启时让我们的表驱动改写压过其它 mod 对同一张原版卡的改动。
+        // prefix 抢到最高优先级 → 我们先执行，返回 false 后排在我们后面的 prefix 全部被跳过；
+        // postfix 用最低优先级 → 我们最后执行，能覆盖别人写进 __result 的值。
+        // 只影响我们登记在 Reworks 表里的原版卡类型；别的 mod 新加的卡不在表里，完全不受影响。
+        int prefixPriority = NecroSettings.ForceOverride ? 10000 : Priority.Normal;
+        int postfixPriority = NecroSettings.ForceOverride ? -10000 : Priority.Normal;
+
+        var varsPostfix = new HarmonyMethod(typeof(Patches), nameof(Patches.VarsPostfix)) { priority = postfixPriority };
+        var playPrefix = new HarmonyMethod(typeof(Patches), nameof(Patches.PlayPrefix)) { priority = prefixPriority };
+        var upgradePostfix = new HarmonyMethod(typeof(Patches), nameof(Patches.UpgradePostfix)) { priority = postfixPriority };
+        var upgradePrefix = new HarmonyMethod(typeof(Patches), nameof(Patches.UpgradePrefix)) { priority = prefixPriority };
+        var keywordsPrefix = new HarmonyMethod(typeof(Patches), nameof(Patches.KeywordsPrefix)) { priority = prefixPriority };
+        var tipsPrefix = new HarmonyMethod(typeof(Patches), nameof(Patches.TipsPrefix)) { priority = prefixPriority };
+        var costPrefix = new HarmonyMethod(typeof(Patches), nameof(Patches.CostPrefix)) { priority = prefixPriority };
+        var typePostfix = new HarmonyMethod(typeof(Patches), nameof(Patches.TypePostfix)) { priority = postfixPriority };
 
         foreach (var type in Reworks.Vars.Keys)
         {
@@ -105,7 +113,7 @@ internal static class PatchInstaller
                 }
 
                 harmony.Patch(gainsBlock, postfix: new HarmonyMethod(
-                    AccessTools.Method(typeof(Patches), nameof(Patches.GainsBlockPostfix))));
+                    AccessTools.Method(typeof(Patches), nameof(Patches.GainsBlockPostfix))) { priority = postfixPriority });
             });
         }
 
@@ -185,6 +193,9 @@ internal static class PatchInstaller
         Safe("费用预览还原", () => CostPreview.Install(harmony));
 
         Main.Log.Info($"[{Main.ModId}] 已挂载 {Reworks.Vars.Count} 个数值改写 / {Reworks.Play.Count} 个效果改写 / {Reworks.Upgrade.Count} 个升级补充 / {Reworks.UpgradeReplace.Count} 个升级替换 / {Reworks.Costs.Count} 个费用改写 / {Reworks.Keywords.Count} 个关键词改写 / {Reworks.Tips.Count} 个提示改写");
+        Main.Log.Info(NecroSettings.ForceOverride
+            ? $"[{Main.ModId}] 最高优先级已开启：本 mod 的原版卡改动会压过其它 mod 的同类改动（prefix {prefixPriority} / postfix {postfixPriority}）"
+            : $"[{Main.ModId}] 最高优先级已关闭：与其它 mod 平级竞争（priority {Priority.Normal}）");
 
         Safe("安装冲突检查", () => ReportConflicts());
     }
@@ -324,6 +335,8 @@ internal static class Patches
 {
     public static void VarsPostfix(object __instance, ref IEnumerable<DynamicVar> __result)
     {
+        if (!NecroSettings.CardReworks) return;
+
         if (__instance is not CardModel card) return;
         if (!Reworks.Vars.TryGetValue(card.GetType(), out var factory)) return;
 
@@ -339,6 +352,8 @@ internal static class Patches
 
     public static bool PlayPrefix(object __instance, ref Task __result, object[] __args)
     {
+        if (!NecroSettings.CardReworks) return true;
+
         if (__instance is not CardModel card) return true;
         if (!Reworks.Play.TryGetValue(card.GetType(), out var impl)) return true;
 
@@ -376,6 +391,8 @@ internal static class Patches
 
     public static void UpgradePostfix(object __instance)
     {
+        if (!NecroSettings.CardReworks) return;
+
         if (__instance is not CardModel card) return;
         if (!Reworks.Upgrade.TryGetValue(card.GetType(), out var apply)) return;
 
@@ -391,6 +408,8 @@ internal static class Patches
 
     public static bool UpgradePrefix(object __instance)
     {
+        if (!NecroSettings.CardReworks) return true;
+
         if (__instance is not CardModel card) return true;
         if (!Reworks.UpgradeReplace.TryGetValue(card.GetType(), out var apply)) return true;
 
@@ -408,6 +427,8 @@ internal static class Patches
 
     public static bool KeywordsPrefix(object __instance, ref IEnumerable<CardKeyword> __result)
     {
+        if (!NecroSettings.CardReworks) return true;
+
         if (__instance is not CardModel card) return true;
         if (!Reworks.Keywords.TryGetValue(card.GetType(), out var keywords)) return true;
 
@@ -420,6 +441,8 @@ internal static class Patches
     /// </summary>
     public static void GainsBlockPostfix(object __instance, ref bool __result)
     {
+        if (!NecroSettings.CardReworks) return;
+
         if (!__result) return;
         if (__instance is not CardModel card) return;
 
@@ -430,6 +453,8 @@ internal static class Patches
     }
 
     public static bool TipsPrefix(object __instance, ref IEnumerable<MegaCrit.Sts2.Core.HoverTips.IHoverTip> __result)    {
+        if (!NecroSettings.CardReworks) return true;
+
         if (__instance is not CardModel card) return true;
         if (!Reworks.Tips.TryGetValue(card.GetType(), out var factory)) return true;
 
@@ -448,6 +473,8 @@ internal static class Patches
     /// <summary>整段替换卡牌的基础费用（原版费用写在构造函数里）。</summary>
     public static bool CostPrefix(object __instance, ref int __result)
     {
+        if (!NecroSettings.CardReworks) return true;
+
         if (__instance is not CardModel card) return true;
         if (!Reworks.Costs.TryGetValue(card.GetType(), out int cost)) return true;
 
@@ -458,6 +485,8 @@ internal static class Patches
     /// <summary>整段替换卡牌类型（如把「苦难」从攻击改成技能）。</summary>
     public static void TypePostfix(object __instance, ref CardType __result)
     {
+        if (!NecroSettings.CardReworks) return;
+
         if (__instance is not CardModel card) return;
         if (!Reworks.Types.TryGetValue(card.GetType(), out CardType type)) return;
 

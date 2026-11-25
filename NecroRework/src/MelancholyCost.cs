@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -7,6 +7,7 @@ using MegaCrit.Sts2.Core.Hooks;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Cards;
 
+using NecroRework.Settings;
 namespace NecroRework;
 
 /// <summary>
@@ -68,6 +69,8 @@ internal static class MelancholyCost
 
     private static void AfterPowerAmountChangedPostfix(PowerModel power, decimal amount, Creature applier)
     {
+        if (!NecroSettings.CardReworks) return;
+
         try
         {
             if (power == null || amount <= 0m) return;

@@ -1,6 +1,7 @@
 ﻿using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Models;
 
+using NecroRework.Settings;
 namespace NecroRework;
 
 /// <summary>
@@ -21,7 +22,7 @@ internal static class MultiplayerMode
     /// <summary>是否正在进行多人战斗（≥2 名玩家）。</summary>
     public static bool IsMultiplayer(ICombatState? combatState)
     {
-        if (ForcedByFlag) return true;
+        if (ForcedByFlag || NecroSettings.MultiplayerSafe) return true;
         if (combatState == null) return false;
 
         try
