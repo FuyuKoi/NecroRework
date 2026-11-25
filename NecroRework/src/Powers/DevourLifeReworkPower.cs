@@ -8,6 +8,7 @@ using MegaCrit.Sts2.Core.Entities.Powers;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Cards;
+using MegaCrit.Sts2.Core.Localization.DynamicVars;
 
 namespace NecroRework.Powers;
 
@@ -24,6 +25,12 @@ public sealed class DevourLifeReworkPower : PowerModel
     public override PowerType Type => PowerType.Buff;
 
     public override PowerStackType StackType => PowerStackType.Counter;
+
+    /// <summary>
+    /// 只为说明文字里能画出能量图标（EnergyIconsFormatter 只吃 EnergyVar 这类值，
+    /// 直接写 {Amount} 会是纯数字）。数值固定 1，实际获得的费用按 <see cref="PowerModel.Amount"/> 走。
+    /// </summary>
+    protected override IEnumerable<DynamicVar> CanonicalVars => [new EnergyVar(1)];
 
     public override async Task AfterCardPlayed(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {

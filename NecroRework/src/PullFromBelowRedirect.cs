@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -314,9 +314,15 @@ internal static class PullFromBelowRedirect
                 return;
             }
 
-            // 牌本身带「消耗」：引擎把它送进消耗堆是正确结果，别再抢回弃牌堆
+            // 这张牌自己带「消耗」，或它的效果在打出时把它消耗掉了：
+            // 用户口径是「被亡魂牵引自动打出的牌不该再消耗」，所以抢回弃牌堆。
             if (pile == PileType.Exhaust)
             {
+                var moved = await CardPileCmd.Add(card, PileType.Discard, CardPilePosition.Bottom);
+                if (moved.success)
+                    Main.Log.Info($"[{Main.ModId}] 亡魂牵引：{card.Id} 被打出时本会消耗，已改为放回弃牌堆");
+                else
+                    Main.Log.Warn($"[{Main.ModId}] 亡魂牵引：{card.Id} 从消耗堆挪回弃牌堆失败");
                 return;
             }
 
@@ -341,6 +347,16 @@ internal static class PullFromBelowRedirect
             Main.Log.Info($"[{Main.ModId}] 亡魂牵引：{card.Id} 改为自动打出");
 
             power.FlashNow();
+
+            // 「不可打出」的牌（例如进阶之灾：虚无 + 不可打出）没法真的自动打出，
+            // 引擎的 AutoPlay 会把它直接塞进消耗堆。用户的期望是：亡魂牵引遇到这类牌
+            // 也把它们回收进弃牌堆，所以这里跳过 AutoPlay，直接走回收。
+            if (card.Keywords.Contains(CardKeyword.Unplayable))
+            {
+                Main.Log.Info($"[{Main.ModId}] 亡魂牵引：{card.Id} 不可打出，跳过自动打出、直接放回弃牌堆");
+                await EnsureInDiscard(card);
+                return null;
+            }
 
             _expectCard = card;
             _expectCardPlayed = false;

@@ -60,15 +60,15 @@ public sealed class Drag : CardModel
     }
 
     /// <summary>
-    /// 卡面：能吃到额外伤害时，在基础伤害后面补一个绿色括号显示本次实际伤害，例如「21（36）」。
-    /// 吃不到时不显示括号。
+    /// 卡面：能吃到额外伤害时，在「造成 X 点伤害」后面补一个绿色括号，写明本次实际会造成多少，
+    /// 例如「造成 21 点伤害（造成 36 点伤害）」。吃不到时不显示括号。
     /// </summary>
     protected override void AddExtraArgsToDescription(LocString description)
     {
         if (DoomThresholdReached(this))
         {
             decimal total = BaseDamage + (IsUpgraded ? ExtraDamageUpgraded : ExtraDamage);
-            description.Add("DamageBonus", $"[green]（{total:0}）[/green]");
+            description.Add("DamageBonus", $"[green]（造成{total:0}点伤害）[/green]");
             return;
         }
 

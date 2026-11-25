@@ -9,7 +9,7 @@ namespace NecroRework.Cards;
 
 /// <summary>
 /// 找回：0 费技能（普通品质），虚无 + 消耗。
-/// 获得 7（升级 9）点格挡与 7（升级 9）点召唤；
+/// 获得 6（升级 8）点格挡与 7（升级 9）点召唤；
 /// 打出后，这张牌在本场战斗中的费用 +1（0 → 1 → 2 …），越打越贵。
 /// </summary>
 public sealed class Retrieve : CardModel
@@ -25,7 +25,7 @@ public sealed class Retrieve : CardModel
     public override bool GainsBlock => true;
 
     protected override IEnumerable<DynamicVar> CanonicalVars =>
-        [new BlockVar(7m, ValueProp.Move), new SummonVar(7m)];
+        [new BlockVar(6m, ValueProp.Move), new SummonVar(7m), new EnergyVar(CostIncreasePerPlay)];
 
     public override IEnumerable<CardKeyword> CanonicalKeywords => [CardKeyword.Exhaust, CardKeyword.Ethereal];
 

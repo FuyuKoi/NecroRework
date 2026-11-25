@@ -6,12 +6,15 @@ using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.addons.mega_text;
 using MegaCrit.Sts2.Core.Combat;
+using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Afflictions;
 using MegaCrit.Sts2.Core.Models.Powers;
+using MegaCrit.Sts2.Core.Combat.History.Entries;
+using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models.Monsters;
 using MegaCrit.Sts2.Core.MonsterMoves.Intents;
 using MegaCrit.Sts2.Core.Nodes.Combat;
@@ -160,7 +163,10 @@ internal static class IntentPreview
 			return;
 		}
 
-		Creature player = combatState.Players.FirstOrDefault()?.Creature;
+		// 联机时每个玩家看到的预判必须按「自己」算：用 LocalContext 取本机玩家，
+		// 拿不到（单人局 / 还没拿到 NetId）才回落到列表里的第一个。
+		Creature player = LocalContext.GetMe(combatState)?.Creature
+			?? combatState.Players.FirstOrDefault()?.Creature;
 		if (player == null)
 		{
 			return;
@@ -331,10 +337,14 @@ internal static class IntentPreview
 	}
 
 	/// <summary>
-	/// 回合结束时、敌人动手之前还会自动加到身上的格挡。
-	/// 目前覆盖两种：
-	///  1) 覆甲（PlatingPower）：回合结束时按层数获得格挡；
-	///  2) 手里的「飘荡」牌：它们带虚无，回合结束会自动消耗，每张给 4 点格挡。
+	/// 回合结束时、敌人动手之前还会自动加到身上的格挡。按引擎的结算顺序覆盖：
+	///  1) 奥利哈刚 / 伪奥利哈刚（BeforeSideTurnEndVeryEarly）：这一瞬间格挡为 0 才触发，
+	///     所以用 player.Block 的原始值判断（覆甲、披风扣这些都还没结算）；
+	///  2) 覆甲（PlatingPower，BeforeSideTurnEndEarly）：按层数获得格挡；
+	///  3) 披风扣（CloakClasp）：手牌张数 × 每张 1 点；
+	///  4) 涟漪盆（RippleBasin）：本回合没打出过攻击牌时 +4；
+	///  5) 手里的「飘荡」牌：它们带虚无，回合结束会自动消耗，每张给 4 点格挡。
+	/// 全部是 ValueProp.Unpowered，不吃敏捷/脆弱，直接加整数。
 	/// </summary>
 	private static int ProjectedEndOfTurnBlock(Creature player, List<CardModel> autoPlayed)
 	{
@@ -346,6 +356,19 @@ internal static class IntentPreview
 
 		int projected = 0;
 
+		// 1) 奥利哈刚一族：引擎看的是「这一瞬间格挡是否为 0」，此时其它落甲都还没结算。
+		if (player.Block <= 0)
+		{
+			foreach (RelicModel relic in me.Relics)
+			{
+				if (relic is MegaCrit.Sts2.Core.Models.Relics.Orichalcum or MegaCrit.Sts2.Core.Models.Relics.FakeOrichalcum)
+				{
+					projected += (int)relic.DynamicVars.Block.BaseValue;
+				}
+			}
+		}
+
+		// 2) 覆甲
 		PlatingPower plating = player.GetPower<PlatingPower>();
 		if (plating != null && plating.Amount > 0)
 		{
@@ -353,6 +376,23 @@ internal static class IntentPreview
 		}
 
 		CardPile hand = PileType.Hand.GetPile(me);
+
+		foreach (RelicModel relic in me.Relics)
+		{
+			// 3) 披风扣：手牌张数 × 每张点数
+			if (relic is MegaCrit.Sts2.Core.Models.Relics.CloakClasp && hand != null && hand.Cards.Count > 0)
+			{
+				projected += (int)(hand.Cards.Count * relic.DynamicVars.Block.BaseValue);
+			}
+
+			// 4) 涟漪盆：本回合没打出过攻击牌才触发
+			if (relic is MegaCrit.Sts2.Core.Models.Relics.RippleBasin && !PlayedAttackThisTurn(me))
+			{
+				projected += (int)relic.DynamicVars.Block.BaseValue;
+			}
+		}
+
+		// 5) 飘荡牌
 		if (hand != null)
 		{
 			foreach (CardModel card in hand.Cards)
@@ -367,6 +407,28 @@ internal static class IntentPreview
 		}
 
 		return projected;
+	}
+
+	/// <summary>本回合有没有打出过攻击牌（涟漪盆的触发条件）。取不到战斗状态时按「打过了」处理，宁可少算格挡。</summary>
+	private static bool PlayedAttackThisTurn(Player player)
+	{
+		try
+		{
+			ICombatState? combatState = player.Creature?.CombatState;
+			if (combatState == null)
+			{
+				return true;
+			}
+
+			return CombatManager.Instance.History.CardPlaysFinished.Any(e =>
+				e.HappenedThisTurn(combatState)
+				&& e.CardPlay.Card.Type == CardType.Attack
+				&& e.CardPlay.Player == player);
+		}
+		catch
+		{
+			return true;
+		}
 	}
 
 	/// <summary>亡魂牵引会拦下的牌：手牌从左到右前 N 张带「虚无」的牌（N = 层数）。</summary>

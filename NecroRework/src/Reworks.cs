@@ -604,11 +604,11 @@ internal static class Reworks
                 .Execute(ctx);
         },
 
-        // 鬼火：获得 2 费，然后获得 5 层灾厄（会触发死亡之门 / 厄运之衣）。
+        // 鬼火：获得 2 费，然后获得 6 层灾厄（会触发死亡之门 / 厄运之衣）。
         [typeof(Wisp)] = async (card, ctx, play) =>
         {
             await PlayerCmd.GainEnergy(card.DynamicVars.Energy.IntValue, card.Owner);
-            await DoomUtil.ApplyToSelf(ctx, card, 5m);
+            await DoomUtil.ApplyToSelf(ctx, card, 6m);
         },
 
         // 鞭打：先把至多 10（升级 12）层灾厄从自己（角色 → 奥斯提）转给目标，
@@ -673,13 +673,13 @@ internal static class Reworks
                 souls, PileType.Draw, card.Owner, CardPilePosition.Random));
         },
 
-        // 违逆：先给自己 8 层灾厄，再起格挡，最后给目标虚弱。
+        // 违逆：先给自己 7 层灾厄，再起格挡，最后给目标虚弱。
         [typeof(Defy)] = async (card, ctx, play) =>
         {
             if (play.Target is not { } target) return;
 
             await CreatureCmd.TriggerAnim(card.Owner.Creature, "Cast", card.Owner.Character.CastAnimDelay);
-            await DoomUtil.ApplyToSelf(ctx, card, 6m);
+            await DoomUtil.ApplyToSelf(ctx, card, 7m);
             await CreatureCmd.GainBlock(card.Owner.Creature, card.DynamicVars.Block, play);
             await PowerCmd.Apply<WeakPower>(ctx, target, card.DynamicVars.Weak.BaseValue, card.Owner.Creature, card);
         },
@@ -1405,10 +1405,8 @@ internal static class Reworks
 
             await OstyCmd.Summon(ctx, card.Owner, card.DynamicVars.Summon.BaseValue, card);
 
-            if (card.Owner.Creature.GetPower<ReanimateWardPower>() == null)
-            {
-                await PowerCmd.Apply<ReanimateWardPower>(ctx, card.Owner.Creature, 1m, card.Owner.Creature, card);
-            }
+            // 可叠加：每打一张就多撑一个回合（层数 = 剩余回合数）。
+            await PowerCmd.Apply<ReanimateWardPower>(ctx, card.Owner.Creature, 1m, card.Owner.Creature, card);
         },
     };
 
@@ -1620,6 +1618,9 @@ internal static class Reworks
 
         // 洁净：召唤改成移除灾厄，原版「召唤」悬停提示要去掉，只留「消耗」提示
         [typeof(Cleanse)] = _ => [HoverTipFactory.FromKeyword(CardKeyword.Exhaust)],
+
+        // 哨卫模式：升级后生成的是「扫荡凝视+」，所以悬停预览也跟着显示升级版
+        [typeof(SentryMode)] = card => [HoverTipFactory.FromCard<SweepingGaze>(card.IsUpgraded)],
     };
 
     /// <summary>

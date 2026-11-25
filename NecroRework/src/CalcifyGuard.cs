@@ -1,4 +1,4 @@
-﻿using System.Runtime.CompilerServices;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
@@ -42,6 +42,18 @@ internal static class CalcifyGuard
         }
 
         harmony.Patch(target, postfix: new HarmonyMethod(typeof(CalcifyGuard), nameof(AfterAttackPostfix)));
+
+        // 每场战斗重新累积：ConditionalWeakTable 里的旧值不清会跨战斗残留。
+        var combatStart = AccessTools.Method(typeof(Hook), "BeforeCombatStart");
+        if (combatStart != null)
+        {
+            harmony.Patch(combatStart, postfix: new HarmonyMethod(typeof(CalcifyGuard), nameof(BeforeCombatStartPostfix)));
+        }
+    }
+
+    private static void BeforeCombatStartPostfix()
+    {
+        Blocks.Clear();
     }
 
     private static void AfterAttackPostfix(AttackCommand command)
@@ -66,7 +78,13 @@ internal static class CalcifyGuard
             int hits = command.Results?.Count() ?? 0;
             if (hits <= 0) return;
 
-            await CreatureCmd.GainBlock(owner, box.Value * hits, ValueProp.Unpowered, null);
+            // 「打一段叠一次」：多段攻击要一段一段地起格挡，而不是一次性把总量加上去。
+            for (int i = 0; i < hits; i++)
+            {
+                await CreatureCmd.GainBlock(owner, box.Value, ValueProp.Unpowered, null);
+            }
+
+            Main.Log.Info($"[{Main.ModId}] 钙化：{hits} 段攻击，每段 {box.Value} 点格挡，合计 {box.Value * hits} 点");
         }
         catch (Exception e)
         {

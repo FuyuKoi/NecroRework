@@ -1,4 +1,6 @@
-﻿using System.Reflection;
+﻿using System;
+using System.Collections.Generic;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using HarmonyLib;
@@ -8,6 +10,7 @@ using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Entities.Powers;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Cards;
 using MegaCrit.Sts2.Core.Models.Powers;
@@ -66,7 +69,31 @@ internal static class SentryModePlus
         harmony.Patch(target,
             prefix: new HarmonyMethod(typeof(SentryModePlus), nameof(BeforeHandDrawPrefix)));
 
-        Main.Log.Info($"[{Main.ModId}] 哨卫模式强化已挂载");
+        // 能力图标上的悬停预览也换成「扫荡凝视+」（场上那一层能力如果是升级版打出来的）
+        MethodInfo? powerTips = AccessTools.PropertyGetter(typeof(SentryModePower), "ExtraHoverTips");
+        if (powerTips != null)
+        {
+            harmony.Patch(powerTips,
+                postfix: new HarmonyMethod(typeof(SentryModePlus), nameof(PowerTipsPostfix)));
+        }
+
+        Main.Log.Info($"[{Main.ModId}] 哨卫模式强化已挂载（能力悬停={powerTips != null}）");
+    }
+
+    private static void PowerTipsPostfix(SentryModePower __instance, ref IEnumerable<IHoverTip> __result)
+    {
+        if (!NecroSettings.CardReworks) return;
+
+        if (!IsMarked(__instance)) return;
+
+        try
+        {
+            __result = [HoverTipFactory.FromCard<SweepingGaze>(upgrade: true)];
+        }
+        catch (Exception e)
+        {
+            Main.Log.Warn($"[{Main.ModId}] 哨卫模式悬停预览替换失败: {e.Message}");
+        }
     }
 
     private static bool BeforeHandDrawPrefix(SentryModePower __instance, Player player,
@@ -76,8 +103,18 @@ internal static class SentryModePlus
 
         if (!IsMarked(__instance)) return true;
 
-        __result = GenerateUpgraded(__instance, player, combatState);
-        return false;
+        // 兜底：这里一旦抛异常，会把「抽牌阶」整个弄死（表现为回合开始时卡住）。
+        // 所以最外层再包一层，出问题就退回原版逻辑（生成普通扫荡凝视）而不是让回合死掉。
+        try
+        {
+            __result = GenerateUpgraded(__instance, player, combatState);
+            return false;
+        }
+        catch (Exception e)
+        {
+            Main.Log.Error($"[{Main.ModId}] 哨卫模式强化执行失败，退回原版生成逻辑: {e}");
+            return true;
+        }
     }
 
     private static async Task GenerateUpgraded(SentryModePower power, Player player, ICombatState combatState)

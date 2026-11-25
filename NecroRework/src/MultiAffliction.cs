@@ -1,7 +1,9 @@
 using System.Reflection;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Cards;
+using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Models;
+using NecroRework.Settings;
 
 namespace NecroRework;
 
@@ -30,7 +32,8 @@ internal static class MultiAffliction
     {
         MethodInfo? afflict = AccessTools.Method(typeof(CardModel), "AfflictInternal", [typeof(AfflictionModel), typeof(decimal)]);
         MethodInfo? clear = AccessTools.Method(typeof(CardModel), "ClearAfflictionInternal");
-        MethodInfo? describe = AccessTools.Method(typeof(CardModel), "GetDescriptionForPile");
+        MethodInfo? describe = AccessTools.Method(typeof(CardModel), "GetDescriptionForPile",
+            [typeof(PileType), typeof(Creature)]);
 
         if (afflict == null)
         {
@@ -65,6 +68,16 @@ internal static class MultiAffliction
         {
             if (__instance?.Affliction == null) return true; // 第一层照旧走原版
             if (affliction == null) return true;
+
+            // 「多重侵蚀共存」默认雪藏（设置页里是实验功能，默认关闭）。
+            // 注意：这里仍然要拦下来 —— 否则原版 AfflictInternal 会抛
+            // 「Attempted to afflict card … that was already afflicted!」把战斗卡死。
+            // 雪藏状态下只做「静默忽略第二层」，不写侧表、不拼描述。
+            if (!NecroSettings.MultiAffliction)
+            {
+                Main.Log.Info($"[{Main.ModId}] 多折磨共存已雪藏：{__instance.Id} 已有 {__instance.Affliction.Id}，忽略 {affliction.Id}");
+                return false;
+            }
 
             List<AfflictionModel> list = Extras.TryGetValue(__instance, out List<AfflictionModel>? existing)
                 ? existing

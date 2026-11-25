@@ -34,11 +34,23 @@ public static class NecroSettings
         Description = "开启：本 mod 对亡灵契约师原版卡的数值 / 效果 / 升级 / 关键词 / 费用会强制压过其他 mod 的同类改动；其他 mod 新增的卡完全不受影响。关闭：与其它 mod 平级竞争。修改后需重开游戏生效。")]
     public static bool ForceOverride { get; set; } = true;
 
+    /// <summary>多重侵蚀共存：默认雪藏（关闭）。关闭时仍会挡掉原版的「already afflicted」异常，只是不再叠第二层。</summary>
+    [ModSettingsToggle("multi_affliction", "cards", Order = 40,
+        Label = "多重侵蚀共存（实验功能）",
+        Description = "开启：同一张牌可以同时挂多个侵蚀（恶咒 + 魂缚 …），描述会把额外文字拼上。关闭（默认）：第二层侵蚀直接被忽略（不会崩，但也不会生效）。联机安全模式下无论开关如何都强制忽略。")]
+    public static bool MultiAffliction { get; set; } = false;
+
     /// <summary>奥斯提 50% 分摊：关闭后「为你而死」回到原版的全额吸收。</summary>
     [ModSettingsToggle("osty_split", "combat", Order = 10,
         Label = "奥斯提分摊一半伤害",
         Description = "开启：奥斯提只吸收 50% 未被格挡的伤害（向上取整），剩下的由你承受。关闭：回到原版全额吸收。")]
     public static bool OstySplit { get; set; } = true;
+
+    /// <summary>药水援助奥斯提：力量/仪式类药水可以扔给奥斯提（拿起药水后点奥斯提）。</summary>
+    [ModSettingsToggle("potion_osty", "combat", Order = 20,
+        Label = "药水可以喂奥斯提",
+        Description = "开启：力量药水、仪式药水一类（会给予力量或仪式的药水）拿起后会进入选目标状态，可以点自己，也可以点奥斯提。关闭：药水回到原版用法。")]
+    public static bool PotionAssist { get; set; } = true;
 
     /// <summary>联机安全模式：多人局里把可能不同步的实现换成保守做法。</summary>
     [ModSettingsToggle("mp_safe", "multiplayer", Order = 10,

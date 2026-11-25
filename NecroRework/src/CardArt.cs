@@ -1,4 +1,4 @@
-﻿using Godot;
+using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.Cards;
@@ -26,6 +26,8 @@ internal static class CardArt
         [typeof(Retrieve)] = "retrieve.png",
         [typeof(Exchange)] = "exchange.png",
         [typeof(CraftSpirit)] = "craft_spirit.png",
+        [typeof(Mend)] = "mend.png",
+        [typeof(FleetingMoment)] = "fleeting_moment.png",
         [typeof(Continuation)] = "continuation.png",
         [typeof(GhostLantern)] = "ghost_lantern.png",
         [typeof(Overdraft)] = "overdraft.png",
@@ -79,7 +81,19 @@ internal static class CardArt
                 harmony.Patch(visuals, postfix: new HarmonyMethod(AccessTools.Method(typeof(CardArt), nameof(UpdateVisualsPostfix))));
             }
 
-            Main.Log.Info($"[{Main.ModId}] 卡图替换已挂载（模型层 {getter != null} / 节点层 {update != null} / 收尾层 {visuals != null}）");
+            // 第四条路：NCard.Reload 之后（0.114 起放大预览会走 Reload，它会把 _portrait.Material
+            // 换成模糊材质、并把贴图重新设成 Model.Portrait，我们盖的那层就被冲掉了）。
+            var reload = AccessTools.Method(typeof(NCard), "Reload");
+            if (reload == null)
+            {
+                Main.Log.Warn($"[{Main.ModId}] 找不到 NCard.Reload，刷新层卡图兜底未挂");
+            }
+            else
+            {
+                harmony.Patch(reload, postfix: new HarmonyMethod(AccessTools.Method(typeof(CardArt), nameof(UpdateVisualsPostfix))));
+            }
+
+            Main.Log.Info($"[{Main.ModId}] 卡图替换已挂载（模型层 {getter != null} / 节点层 {update != null} / 收尾层 {visuals != null} / 刷新层 {reload != null}）");
         }
         catch (Exception e)
         {
@@ -132,11 +146,17 @@ internal static class CardArt
             CardModel model = node?.Model;
             if (model == null) return;
 
+            // 节点还没 _Ready 时（NCard.Create → set_Model → Reload 这条链）内部字段
+            // _portrait / _ancientPortrait 都还是 null，直接调 SetPortraitTexture 会抛 NRE。
+            if (!GodotObject.IsInstanceValid(node) || !node.IsNodeReady()) return;
+            if (PortraitRef(node) == null) return;
+
             Texture2D texture = Resolve(model, out bool handled);
             if (handled && texture != null)
             {
                 node.SetPortraitTexture(texture);
                 FixShaderUv(node);
+                ClearBlurMaterial(node);
                 Watch(node, texture);
             }
         }
@@ -179,6 +199,27 @@ internal static class CardArt
     {
         if (rect?.Texture == null) return;
         rect.SetInstanceShaderParameter("uv_region", new Rect2(0f, 0f, 1f, 1f));
+    }
+
+    /// <summary>
+    /// 放大/牌堆预览时引擎会给卡面套一层「模糊材质」（<c>card_portrait_blur_material</c>），
+    /// 该材质靠图集 UV 采样；我们的 png 不在图集里，采样会落到图集左上角的 BETA 占位图。
+    /// 0.114 里 NCard.Reload 会重新挂这个材质，所以每次盖完贴图都把它摘掉：
+    /// 我们自己画的图本来就不需要模糊，直接显示反而更清楚。
+    /// </summary>
+    private static void ClearBlurMaterial(NCard node)
+    {
+        try
+        {
+            TextureRect? portrait = PortraitRef(node);
+            if (portrait != null) portrait.Material = null;
+            TextureRect? ancient = AncientPortraitRef(node);
+            if (ancient != null) ancient.Material = null;
+        }
+        catch (Exception e)
+        {
+            Main.Log.Error($"[{Main.ModId}] 卡图模糊材质清理失败: {e}");
+        }
     }
 
     /// <summary>
@@ -250,7 +291,8 @@ internal static class CardArt
 
     /// <summary>还没有专属卡图的新卡，统一用游戏自带的 beta 占位图。</summary>
     private static bool UsesPlaceholder(CardModel card) =>
-        card is FleetingLife or Continuation or Drag or Cover or Sublimation or BeginnerMind or Mend or Gaze or SoulGather or Forsake or SoulBarrier or RiverOfOblivion or TurnToDust or RebornAnew;
+        card is FleetingLife or Continuation or Drag or Cover or Sublimation or BeginnerMind or Gaze
+            or SoulGather or Forsake or SoulBarrier or RiverOfOblivion or TurnToDust or RebornAnew;
 
     private static Texture2D Load(string fileName)
     {

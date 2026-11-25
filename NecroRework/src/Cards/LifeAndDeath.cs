@@ -1,7 +1,9 @@
-﻿using MegaCrit.Sts2.Core.Commands;
+using MegaCrit.Sts2.Core.Commands;
+using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Monsters;
@@ -18,7 +20,7 @@ namespace NecroRework.Cards;
 /// </summary>
 public sealed class LifeAndDeath : CardModel
 {
-    private const decimal DoomToAbsorb = 25m;
+    private const decimal DoomToAbsorb = 20m;
 
     public LifeAndDeath()
         : base(2, CardType.Attack, CardRarity.Uncommon, TargetType.AnyEnemy)
@@ -71,5 +73,26 @@ public sealed class LifeAndDeath : CardModel
     protected override void OnUpgrade()
     {
         EnergyCost.UpgradeBy(-1);
+    }
+
+    /// <summary>
+    /// 战斗内才追加「（造成 X 点伤害）」这一行。
+    /// 不用 l10n 的 {InCombat:…} 条件：那个变量在图鉴里也会被判成「在战斗中」，
+    /// 于是图鉴会显示「（造成 0 点伤害）」。改成代码侧判断（无战斗状态就不加），更稳。
+    /// </summary>
+    protected override void AddExtraArgsToDescription(LocString description)
+    {
+        // 只有「真的在战斗里」才显示这一行：
+        // 图鉴、牌堆查看、战斗结算界面都拿不到 IsInProgress，于是这里给空字符串。
+        bool inCombat = !IsCanonical
+            && Owner?.PlayerCombatState != null
+            && CombatManager.Instance.IsInProgress;
+        if (!inCombat)
+        {
+            description.Add("DamageReadout", string.Empty);
+            return;
+        }
+
+        description.Add("DamageReadout", $"\n[green]（造成{DamageOf(this)}点伤害）[/green]");
     }
 }

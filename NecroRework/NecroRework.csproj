@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
@@ -64,6 +64,11 @@
     <None Include="ghost_lantern.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="overdraft.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="living_end.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="mend.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="fleeting_moment.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="pull_aggro_icon.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="necro_mastery_block_icon.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="sic_em_counter_icon.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="ominous_punch.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="all_is_void.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="world_burden.png" CopyToOutputDirectory="PreserveNewest" />

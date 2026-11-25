@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Powers;
@@ -18,11 +18,20 @@ internal static class PowerIcons
 {
     private const string DieForYouIconFile = "die_for_you_icon.png";
     private const string DeathRhythmIconFile = "death_rhythm.png";
+    private const string PullAggroIconFile = "pull_aggro_icon.png";
+    private const string NecroMasteryBlockIconFile = "necro_mastery_block_icon.png";
+    private const string SicEmCounterIconFile = "sic_em_counter_icon.png";
 
     private static Texture2D? _dieForYouIcon;
     private static bool _dieForYouIconTried;
     private static Texture2D? _deathRhythmIcon;
     private static bool _deathRhythmIconTried;
+    private static Texture2D? _pullAggroIcon;
+    private static bool _pullAggroIconTried;
+    private static Texture2D? _necroMasteryBlockIcon;
+    private static bool _necroMasteryBlockIconTried;
+    private static Texture2D? _sicEmCounterIcon;
+    private static bool _sicEmCounterIconTried;
 
     public static void Install(Harmony harmony)
     {
@@ -151,8 +160,12 @@ internal static class PowerIcons
                 return LoadDieForYouIcon();
             case DeathRhythmPower:
                 return LoadCustomIcon(DeathRhythmIconFile, ref _deathRhythmIcon, ref _deathRhythmIconTried, "死亡律动");
+            case OstyGuardPower:
+                return LoadCustomIcon(PullAggroIconFile, ref _pullAggroIcon, ref _pullAggroIconTried, "吸引仇恨");
+            case NecroMasteryGuardPower:
+                return LoadCustomIcon(NecroMasteryBlockIconFile, ref _necroMasteryBlockIcon, ref _necroMasteryBlockIconTried, "亡灵精通格挡返还");
             case SicEmCounterPower:
-                return ModelDb.Relic<FakeSneckoEye>().Icon;
+                return LoadCustomIcon(SicEmCounterIconFile, ref _sicEmCounterIcon, ref _sicEmCounterIconTried, "紧追不放计数器");
         }
 
         return VanillaPowerFor(power)?.Icon;
@@ -166,8 +179,12 @@ internal static class PowerIcons
                 return LoadDieForYouIcon();
             case DeathRhythmPower:
                 return LoadCustomIcon(DeathRhythmIconFile, ref _deathRhythmIcon, ref _deathRhythmIconTried, "死亡律动");
+            case OstyGuardPower:
+                return LoadCustomIcon(PullAggroIconFile, ref _pullAggroIcon, ref _pullAggroIconTried, "吸引仇恨");
+            case NecroMasteryGuardPower:
+                return LoadCustomIcon(NecroMasteryBlockIconFile, ref _necroMasteryBlockIcon, ref _necroMasteryBlockIconTried, "亡灵精通格挡返还");
             case SicEmCounterPower:
-                return ModelDb.Relic<FakeSneckoEye>().BigIcon;
+                return LoadCustomIcon(SicEmCounterIconFile, ref _sicEmCounterIcon, ref _sicEmCounterIconTried, "紧追不放计数器");
         }
 
         return VanillaPowerFor(power)?.BigIcon;
@@ -206,6 +223,10 @@ internal static class PowerIcons
                     __result = ModelDb.Power<CountdownPower>().PackedIconPath;
                     break;
                 case GhostLanternPower:
+                    __result = ModelDb.Power<SpiritOfAshPower>().PackedIconPath;
+                    break;
+                case FleetingMomentPower:
+                    // 飞逝：暂时借「灰烬之灵」的图标（都是「消耗时触发」的能力）
                     __result = ModelDb.Power<SpiritOfAshPower>().PackedIconPath;
                     break;
                 case CaptureSpiritStrengthDownPower:
@@ -283,6 +304,24 @@ internal static class PowerIcons
                 if (icon != null) __result = icon;
                 break;
             }
+            case OstyGuardPower:
+            {
+                var icon = LoadCustomIcon(PullAggroIconFile, ref _pullAggroIcon, ref _pullAggroIconTried, "吸引仇恨");
+                if (icon != null) __result = icon;
+                break;
+            }
+            case NecroMasteryGuardPower:
+            {
+                var icon = LoadCustomIcon(NecroMasteryBlockIconFile, ref _necroMasteryBlockIcon, ref _necroMasteryBlockIconTried, "亡灵精通格挡返还");
+                if (icon != null) __result = icon;
+                break;
+            }
+            case SicEmCounterPower:
+            {
+                var icon = LoadCustomIcon(SicEmCounterIconFile, ref _sicEmCounterIcon, ref _sicEmCounterIconTried, "紧追不放计数器");
+                if (icon != null) __result = icon;
+                break;
+            }
         }
     }
 
@@ -299,6 +338,24 @@ internal static class PowerIcons
             case DeathRhythmPower:
             {
                 var icon = LoadCustomIcon(DeathRhythmIconFile, ref _deathRhythmIcon, ref _deathRhythmIconTried, "死亡律动");
+                if (icon != null) __result = icon;
+                break;
+            }
+            case OstyGuardPower:
+            {
+                var icon = LoadCustomIcon(PullAggroIconFile, ref _pullAggroIcon, ref _pullAggroIconTried, "吸引仇恨");
+                if (icon != null) __result = icon;
+                break;
+            }
+            case NecroMasteryGuardPower:
+            {
+                var icon = LoadCustomIcon(NecroMasteryBlockIconFile, ref _necroMasteryBlockIcon, ref _necroMasteryBlockIconTried, "亡灵精通格挡返还");
+                if (icon != null) __result = icon;
+                break;
+            }
+            case SicEmCounterPower:
+            {
+                var icon = LoadCustomIcon(SicEmCounterIconFile, ref _sicEmCounterIcon, ref _sicEmCounterIconTried, "紧追不放计数器");
                 if (icon != null) __result = icon;
                 break;
             }

@@ -1,4 +1,4 @@
-using MegaCrit.Sts2.Core.Commands;
+﻿using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
@@ -9,7 +9,7 @@ namespace NecroRework.Cards;
 
 /// <summary>
 /// 触碰：2 费攻击（普通品质，升级后 1 费）。
-/// 奥斯提吸收你 75% 的灾厄 → 奥斯提失去 6 点生命值 → 奥斯提造成 6 点伤害 → 你获得 11 点格挡。
+/// 奥斯提吸收你 50% 的灾厄 → 奥斯提失去 6 点生命值 → 奥斯提造成 6 点伤害 → 你获得 11 点格挡。
 /// 奥斯提如果死在这 4 点生命值上，后续伤害与格挡都不会发生。
 /// </summary>
 public sealed class Touch : CardModel
@@ -40,8 +40,8 @@ public sealed class Touch : CardModel
         if (cardPlay.Target is not { } target) return;
         if (Owner.Osty is not { IsAlive: true } osty) return;
 
-        // 奥斯提吸收你「75%」的灾厄：向上取整，扣减不判定，落到奥斯提身上算一次施加。
-        var share = (int)Math.Ceiling(DoomUtil.PlayerDoom(this) * 0.75m);
+        // 奥斯提吸收你「50%」的灾厄：向上取整，扣减不判定，落到奥斯提身上算一次施加。
+        var share = (int)Math.Ceiling(DoomUtil.PlayerDoom(this) * 0.5m);
         if (share > 0)
             await DoomUtil.TransferToOsty(choiceContext, this, share);
 
