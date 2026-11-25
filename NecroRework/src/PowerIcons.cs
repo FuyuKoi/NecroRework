@@ -21,6 +21,7 @@ internal static class PowerIcons
     private const string PullAggroIconFile = "pull_aggro_icon.png";
     private const string NecroMasteryBlockIconFile = "necro_mastery_block_icon.png";
     private const string SicEmCounterIconFile = "sic_em_counter_icon.png";
+    private const string PullFromBelowIconFile = "pull_from_below_icon.png";
 
     private static Texture2D? _dieForYouIcon;
     private static bool _dieForYouIconTried;
@@ -32,6 +33,8 @@ internal static class PowerIcons
     private static bool _necroMasteryBlockIconTried;
     private static Texture2D? _sicEmCounterIcon;
     private static bool _sicEmCounterIconTried;
+    private static Texture2D? _pullFromBelowIcon;
+    private static bool _pullFromBelowIconTried;
 
     public static void Install(Harmony harmony)
     {
@@ -164,6 +167,9 @@ internal static class PowerIcons
                 return LoadCustomIcon(PullAggroIconFile, ref _pullAggroIcon, ref _pullAggroIconTried, "吸引仇恨");
             case NecroMasteryGuardPower:
                 return LoadCustomIcon(NecroMasteryBlockIconFile, ref _necroMasteryBlockIcon, ref _necroMasteryBlockIconTried, "亡灵精通格挡返还");
+            case PullFromBelowPower:
+                return LoadCustomIcon(PullFromBelowIconFile, ref _pullFromBelowIcon, ref _pullFromBelowIconTried, "亡魂牵引");
+
             case SicEmCounterPower:
                 return LoadCustomIcon(SicEmCounterIconFile, ref _sicEmCounterIcon, ref _sicEmCounterIconTried, "紧追不放计数器");
         }
@@ -183,6 +189,9 @@ internal static class PowerIcons
                 return LoadCustomIcon(PullAggroIconFile, ref _pullAggroIcon, ref _pullAggroIconTried, "吸引仇恨");
             case NecroMasteryGuardPower:
                 return LoadCustomIcon(NecroMasteryBlockIconFile, ref _necroMasteryBlockIcon, ref _necroMasteryBlockIconTried, "亡灵精通格挡返还");
+            case PullFromBelowPower:
+                return LoadCustomIcon(PullFromBelowIconFile, ref _pullFromBelowIcon, ref _pullFromBelowIconTried, "亡魂牵引");
+
             case SicEmCounterPower:
                 return LoadCustomIcon(SicEmCounterIconFile, ref _sicEmCounterIcon, ref _sicEmCounterIconTried, "紧追不放计数器");
         }
@@ -316,6 +325,13 @@ internal static class PowerIcons
                 if (icon != null) __result = icon;
                 break;
             }
+            case PullFromBelowPower:
+            {
+                var icon = LoadCustomIcon(PullFromBelowIconFile, ref _pullFromBelowIcon, ref _pullFromBelowIconTried, "亡魂牵引");
+                if (icon != null) __result = icon;
+                break;
+            }
+
             case SicEmCounterPower:
             {
                 var icon = LoadCustomIcon(SicEmCounterIconFile, ref _sicEmCounterIcon, ref _sicEmCounterIconTried, "紧追不放计数器");
@@ -353,6 +369,13 @@ internal static class PowerIcons
                 if (icon != null) __result = icon;
                 break;
             }
+            case PullFromBelowPower:
+            {
+                var icon = LoadCustomIcon(PullFromBelowIconFile, ref _pullFromBelowIcon, ref _pullFromBelowIconTried, "亡魂牵引");
+                if (icon != null) __result = icon;
+                break;
+            }
+
             case SicEmCounterPower:
             {
                 var icon = LoadCustomIcon(SicEmCounterIconFile, ref _sicEmCounterIcon, ref _sicEmCounterIconTried, "紧追不放计数器");

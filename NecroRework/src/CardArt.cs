@@ -28,6 +28,8 @@ internal static class CardArt
         [typeof(CraftSpirit)] = "craft_spirit.png",
         [typeof(Mend)] = "mend.png",
         [typeof(FleetingMoment)] = "fleeting_moment.png",
+        [typeof(FleetingLife)] = "fleeting_life.png",
+        [typeof(RiverOfOblivion)] = "river_of_oblivion.png",
         [typeof(Continuation)] = "continuation.png",
         [typeof(GhostLantern)] = "ghost_lantern.png",
         [typeof(Overdraft)] = "overdraft.png",
@@ -146,10 +148,17 @@ internal static class CardArt
             CardModel model = node?.Model;
             if (model == null) return;
 
+            if (!GodotObject.IsInstanceValid(node)) return;
+
             // 节点还没 _Ready 时（NCard.Create → set_Model → Reload 这条链）内部字段
             // _portrait / _ancientPortrait 都还是 null，直接调 SetPortraitTexture 会抛 NRE。
-            if (!GodotObject.IsInstanceValid(node) || !node.IsNodeReady()) return;
-            if (PortraitRef(node) == null) return;
+            // 这种情况下不能只是「放弃」——否则这张牌就永远是原版/占位图（放大后尤其明显），
+            // 所以挂到 Ready 信号上，等节点真正就绪后再补一次。
+            if (!node.IsNodeReady() || PortraitRef(node) == null)
+            {
+                Defer(node);
+                return;
+            }
 
             Texture2D texture = Resolve(model, out bool handled);
             if (handled && texture != null)
@@ -172,9 +181,27 @@ internal static class CardArt
     private static readonly AccessTools.FieldRef<NCard, TextureRect> AncientPortraitRef =
         AccessTools.FieldRefAccess<NCard, TextureRect>("_ancientPortrait");
 
+    /// <summary>已经挂过 Ready 回调的节点（按实例 ID 记，避免重复挂）。</summary>
+    private static readonly HashSet<ulong> Deferred = new();
+
+    /// <summary>节点还没就绪：挂一次性 Ready 回调，就绪后重新盖一次卡图。</summary>
+    private static void Defer(NCard node)
+    {
+        ulong id = node.GetInstanceId();
+        if (!Deferred.Add(id)) return;
+
+        node.Ready += () =>
+        {
+            Deferred.Remove(id);
+            if (GodotObject.IsInstanceValid(node)) Apply(node);
+        };
+
+        node.TreeExiting += () => Deferred.Remove(id);
+    }
+
     private static readonly Dictionary<ulong, int> WatchCount = new();
 
-    private const int MaxWatchChecks = 6;
+    private const int MaxWatchChecks = 12;
 
     /// <summary>
     /// 我们自己载进来的贴图不在图集里，<c>UpdatePortraitBlurParams</c> 会用
@@ -291,8 +318,8 @@ internal static class CardArt
 
     /// <summary>还没有专属卡图的新卡，统一用游戏自带的 beta 占位图。</summary>
     private static bool UsesPlaceholder(CardModel card) =>
-        card is FleetingLife or Continuation or Drag or Cover or Sublimation or BeginnerMind or Gaze
-            or SoulGather or Forsake or SoulBarrier or RiverOfOblivion or TurnToDust or RebornAnew;
+        card is Continuation or Drag or Cover or Sublimation or BeginnerMind or Gaze
+            or SoulGather or Forsake or SoulBarrier or TurnToDust or RebornAnew;
 
     private static Texture2D Load(string fileName)
     {

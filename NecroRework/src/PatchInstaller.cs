@@ -194,6 +194,7 @@ internal static class PatchInstaller
 
         // 药水援助奥斯提：力量类药水可以点奥斯提（默认开启，设置页可关）
         Safe("药水援助奥斯提", () => PotionAssist.Install(harmony));
+        Safe("灾厄悬停提示", () => DoomHoverTip.Install(harmony));
 
         Main.Log.Info($"[{Main.ModId}] 已挂载 {Reworks.Vars.Count} 个数值改写 / {Reworks.Play.Count} 个效果改写 / {Reworks.Upgrade.Count} 个升级补充 / {Reworks.UpgradeReplace.Count} 个升级替换 / {Reworks.Costs.Count} 个费用改写 / {Reworks.Keywords.Count} 个关键词改写 / {Reworks.Tips.Count} 个提示改写");
         Main.Log.Info(NecroSettings.ForceOverride

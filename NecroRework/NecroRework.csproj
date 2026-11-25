@@ -66,6 +66,9 @@
     <None Include="living_end.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="mend.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="fleeting_moment.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="fleeting_life.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="pull_from_below_icon.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="river_of_oblivion.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="pull_aggro_icon.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="necro_mastery_block_icon.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="sic_em_counter_icon.png" CopyToOutputDirectory="PreserveNewest" />
