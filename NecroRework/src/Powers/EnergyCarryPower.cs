@@ -6,6 +6,7 @@ using MegaCrit.Sts2.Core.Entities.Powers;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Powers;
+using MegaCrit.Sts2.Core.Localization.DynamicVars;
 
 namespace NecroRework.Powers;
 
@@ -22,6 +23,12 @@ public sealed class EnergyCarryPower : PowerModel
     public override PowerType Type => PowerType.Buff;
 
     public override PowerStackType StackType => PowerStackType.Counter;
+
+    /// <summary>
+    /// 只为说明文字里能画出能量图标（EnergyIconsFormatter 只吃 EnergyVar 这类值，
+    /// 直接写 {Amount} 会是纯数字）。数值固定 1，实际保留多少费用由引擎决定。
+    /// </summary>
+    protected override IEnumerable<DynamicVar> CanonicalVars => [new EnergyVar(1)];
 
     /// <summary>本能力在场时，玩家的费用不做重置（引擎会改成「当前费用 + 本回合最大费用」）。</summary>
     public override bool ShouldPlayerResetEnergy(Player player)

@@ -10,7 +10,8 @@ namespace NecroRework;
 /// 彼岸一瞥用：给生成的「灵魂」随机附一个**非攻击类**的附魔。
 /// 「非攻击类」= 不会像腐化那样只给攻击牌加伤害的那些；这里挑的全是灵魂（0 费技能）能吃、
 /// 而且效果是增益的附魔：格挡、固有+保留、减费、去掉消耗、回能、保留、抽牌。
-/// （「墨染/Inky」被用户点名移除，不再进池子。）
+/// （「墨染/Inky」被用户点名移除，不再进池子；「蛇行/Slither」按用户要求加入：
+/// 它在抽到时会随机改费用，属于「有概率」的风险附魔。）
 /// </summary>
 internal static class SoulEnchantmentRoll
 {
@@ -23,6 +24,7 @@ internal static class SoulEnchantmentRoll
         () => ModelDb.Enchantment<Sown>(),
         () => ModelDb.Enchantment<Steady>(),
         () => ModelDb.Enchantment<Swift>(),
+        () => ModelDb.Enchantment<Slither>(),
     ];
 
     internal static void ApplyRandom(CardModel card, Player? roller)

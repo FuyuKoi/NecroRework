@@ -1,5 +1,5 @@
-{
+﻿{
   "DRIFT_ENCHANTMENT.title": "飘荡",
-  "DRIFT_ENCHANTMENT.description": "费用+1。获得[gold]虚无[/gold]。此牌被[gold]消耗[/gold]时，获得4点格挡。",
-  "DRIFT_ENCHANTMENT.extraCardText": "费用+1，虚无，消耗时获得4点格挡。"
+  "DRIFT_ENCHANTMENT.description": "耗能增加{Energy:energyIcons()}，获得[gold]虚无[/gold]。此牌被[gold]消耗[/gold]时，获得4点格挡。",
+  "DRIFT_ENCHANTMENT.extraCardText": "耗能增加{Energy:energyIcons()}，虚无，消耗时获得4点格挡。"
 }

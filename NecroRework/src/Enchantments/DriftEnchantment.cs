@@ -1,4 +1,5 @@
-using MegaCrit.Sts2.Core.Entities.Cards;
+﻿using MegaCrit.Sts2.Core.Entities.Cards;
+using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 
 namespace NecroRework.Enchantments;
@@ -10,6 +11,9 @@ namespace NecroRework.Enchantments;
 public sealed class DriftEnchantment : EnchantmentModel
 {
     public const int BlockOnExhaust = 4;
+
+    /// <summary>只为了让描述里的 {Energy:energyIcons()} 能画出能量图标（数值固定 1）。</summary>
+    protected override IEnumerable<DynamicVar> CanonicalVars => [new EnergyVar(1)];
 
     /// <summary>飘荡不显示层数。</summary>
     public override bool ShowAmount => false;

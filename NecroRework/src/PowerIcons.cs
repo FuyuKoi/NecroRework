@@ -22,6 +22,7 @@ internal static class PowerIcons
     private const string NecroMasteryBlockIconFile = "necro_mastery_block_icon.png";
     private const string SicEmCounterIconFile = "sic_em_counter_icon.png";
     private const string PullFromBelowIconFile = "pull_from_below_icon.png";
+    private const string FleetingMomentIconFile = "fleeting_moment_icon.png";
 
     private static Texture2D? _dieForYouIcon;
     private static bool _dieForYouIconTried;
@@ -35,6 +36,8 @@ internal static class PowerIcons
     private static bool _sicEmCounterIconTried;
     private static Texture2D? _pullFromBelowIcon;
     private static bool _pullFromBelowIconTried;
+    private static Texture2D? _fleetingMomentIcon;
+    private static bool _fleetingMomentIconTried;
 
     public static void Install(Harmony harmony)
     {
@@ -167,6 +170,8 @@ internal static class PowerIcons
                 return LoadCustomIcon(PullAggroIconFile, ref _pullAggroIcon, ref _pullAggroIconTried, "吸引仇恨");
             case NecroMasteryGuardPower:
                 return LoadCustomIcon(NecroMasteryBlockIconFile, ref _necroMasteryBlockIcon, ref _necroMasteryBlockIconTried, "亡灵精通格挡返还");
+            case FleetingMomentPower:
+                return LoadCustomIcon(FleetingMomentIconFile, ref _fleetingMomentIcon, ref _fleetingMomentIconTried, "飞逝");
             case PullFromBelowPower:
                 return LoadCustomIcon(PullFromBelowIconFile, ref _pullFromBelowIcon, ref _pullFromBelowIconTried, "亡魂牵引");
 
@@ -189,6 +194,8 @@ internal static class PowerIcons
                 return LoadCustomIcon(PullAggroIconFile, ref _pullAggroIcon, ref _pullAggroIconTried, "吸引仇恨");
             case NecroMasteryGuardPower:
                 return LoadCustomIcon(NecroMasteryBlockIconFile, ref _necroMasteryBlockIcon, ref _necroMasteryBlockIconTried, "亡灵精通格挡返还");
+            case FleetingMomentPower:
+                return LoadCustomIcon(FleetingMomentIconFile, ref _fleetingMomentIcon, ref _fleetingMomentIconTried, "飞逝");
             case PullFromBelowPower:
                 return LoadCustomIcon(PullFromBelowIconFile, ref _pullFromBelowIcon, ref _pullFromBelowIconTried, "亡魂牵引");
 
@@ -325,6 +332,12 @@ internal static class PowerIcons
                 if (icon != null) __result = icon;
                 break;
             }
+            case FleetingMomentPower:
+            {
+                var icon = LoadCustomIcon(FleetingMomentIconFile, ref _fleetingMomentIcon, ref _fleetingMomentIconTried, "飞逝");
+                if (icon != null) __result = icon;
+                break;
+            }
             case PullFromBelowPower:
             {
                 var icon = LoadCustomIcon(PullFromBelowIconFile, ref _pullFromBelowIcon, ref _pullFromBelowIconTried, "亡魂牵引");
@@ -366,6 +379,12 @@ internal static class PowerIcons
             case NecroMasteryGuardPower:
             {
                 var icon = LoadCustomIcon(NecroMasteryBlockIconFile, ref _necroMasteryBlockIcon, ref _necroMasteryBlockIconTried, "亡灵精通格挡返还");
+                if (icon != null) __result = icon;
+                break;
+            }
+            case FleetingMomentPower:
+            {
+                var icon = LoadCustomIcon(FleetingMomentIconFile, ref _fleetingMomentIcon, ref _fleetingMomentIconTried, "飞逝");
                 if (icon != null) __result = icon;
                 break;
             }

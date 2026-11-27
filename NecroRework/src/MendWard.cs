@@ -24,6 +24,9 @@ internal static class MendWard
         Suppressed.Add(card);
     }
 
+    /// <summary>这张牌本回合被弥合点名保护了吗（不会因虚无而消耗）。意图预判要用。</summary>
+    public static bool IsSuppressed(CardModel card) => Suppressed.Contains(card);
+
     public static void Install(Harmony harmony)
     {
         MethodInfo? trigger = AccessTools.Method(typeof(Hook), nameof(Hook.ShouldEtherealTrigger));

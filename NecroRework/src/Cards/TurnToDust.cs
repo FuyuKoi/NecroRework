@@ -5,6 +5,7 @@ using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Powers;
 using NecroRework.Powers;
+using MegaCrit.Sts2.Core.HoverTips;
 
 namespace NecroRework.Cards;
 
@@ -17,6 +18,13 @@ public sealed class TurnToDust : CardModel
     public TurnToDust() : base(1, CardType.Power, CardRarity.Uncommon, TargetType.Self)
     {
     }
+
+    // 卡面写「格挡」「召唤」，挂这两个词条。
+    protected override IEnumerable<IHoverTip> ExtraHoverTips =>
+    [
+        HoverTipFactory.Static(StaticHoverTip.Block),
+        HoverTipFactory.Static(StaticHoverTip.SummonStatic)
+    ];
 
     protected override IEnumerable<DynamicVar> CanonicalVars => [];
 

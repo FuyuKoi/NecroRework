@@ -1,9 +1,10 @@
-using MegaCrit.Sts2.Core.Commands;
+﻿using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.ValueProps;
+using MegaCrit.Sts2.Core.HoverTips;
 
 namespace NecroRework.Cards;
 
@@ -27,7 +28,16 @@ public sealed class Retrieve : CardModel
     protected override IEnumerable<DynamicVar> CanonicalVars =>
         [new BlockVar(6m, ValueProp.Move), new SummonVar(7m), new EnergyVar(CostIncreasePerPlay)];
 
-    public override IEnumerable<CardKeyword> CanonicalKeywords => [CardKeyword.Exhaust, CardKeyword.Ethereal];
+    // 按用户要求：找回不再带「消耗」（只保留「虚无」，回合结束留在手牌里仍会烧掉）。
+    // 注意：AfterCardExhausted 那条「被消耗时也触发」的逻辑仍然有效（虚无烧掉同样算消耗）。
+    public override IEnumerable<CardKeyword> CanonicalKeywords => [CardKeyword.Ethereal];
+
+    // 卡面写「召唤」「能量」，两个词条都挂出来。
+    protected override IEnumerable<IHoverTip> ExtraHoverTips =>
+    [
+        HoverTipFactory.Static(StaticHoverTip.SummonDynamic, DynamicVars.Summon),
+        HoverTipFactory.ForEnergy(this)
+    ];
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {

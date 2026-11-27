@@ -11,7 +11,7 @@ namespace NecroRework.Cards;
 
 /// <summary>
 /// 升华：1 费攻击（罕见/蓝卡），虚无。
-/// 造成 16 点伤害；这张牌的耗能每变化 1 点，本场战斗中的伤害就 +8（升级 +12）。
+/// 造成 16 点伤害；这张牌的耗能每变化一次（不论一次跳几点），本场战斗中的伤害就 +8（升级 +12）。
 /// 打出过一次之后，每次再抽到这张牌，它的耗能永久 +1。
 /// </summary>
 public sealed class Sublimation : CardModel
@@ -38,15 +38,17 @@ public sealed class Sublimation : CardModel
         new CalculationBaseVar(BaseDamage),
         new ExtraDamageVar(DamagePerCostStep),
         new CalculatedDamageVar(ValueProp.Move).WithMultiplier((CardModel card, Creature _) => CostStepsOf(card)),
+        // 只为让描述里的 {Energy:energyIcons()} 能画出能量图标（数值固定 1，卡面不显示）。
+        new EnergyVar(1),
     ];
 
-    /// <summary>这张牌累计「耗能变化」了多少点。</summary>
+    /// <summary>这张牌累计「耗能变化」了多少次。</summary>
     public static int CostStepsOf(CardModel card)
     {
         return StepTable.TryGetValue(card, out StrongBox<int> box) ? box.Value : 0;
     }
 
-    /// <summary>记录一次耗能变化（变化了几点就记几点）。</summary>
+    /// <summary>记录耗能变化次数（调用方按「一次变化」为单位记账）。</summary>
     public static void AddCostSteps(CardModel card, int steps)
     {
         if (steps <= 0) return;

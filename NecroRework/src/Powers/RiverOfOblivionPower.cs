@@ -49,11 +49,24 @@ public sealed class RiverOfOblivionPower : PowerModel
         if (power.Owner != player.Creature) return;
         if (player.Osty is not { IsAlive: true } osty) return;
 
+        // 「生与死」在场且还有额度时，交给它处理这一笔：
+        // 它会把额度内的层数搬走并让奥斯提失去等量生命值，
+        // 剩下的层数（相忘于川的部分）它也会一起搬走、只是不掉血。
+        // 这样两个能力的结算顺序固定成「生与死先、相忘于川后」，不会互相抢。
+        if (Owner.GetPower<LifeAndDeathPower>() is { Amount: > 0 })
+        {
+            return;
+        }
+
         try
         {
-            // 先无判定地扣掉你身上这份，再原样压给奥斯提
-            await PowerCmd.ModifyAmount(choiceContext, power, -amount, null, cardSource);
-            await PowerCmd.Apply<DoomPower>(choiceContext, osty, amount, applier, cardSource);
+            // 先无判定地扣掉你身上这份，再压给奥斯提。
+            // applier 传 null：转移这一步不再重复触发厄运之衣（你自己那次施加已经算过了）。
+            int movable = (int)Math.Min(amount, power.Amount);
+            if (movable <= 0) return;
+
+            await PowerCmd.ModifyAmount(choiceContext, power, -movable, null, cardSource);
+            await PowerCmd.Apply<DoomPower>(choiceContext, osty, movable, null, cardSource);
         }
         catch (System.Exception e)
         {

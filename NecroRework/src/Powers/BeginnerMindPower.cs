@@ -37,7 +37,10 @@ public sealed class BeginnerMindPower : PowerModel
         {
             Main.Log.Info($"[{Main.ModId}] 初心：回收上回合被动消耗的 {recall.Count} 张牌（{string.Join("/", recall.Select(c => c.Id.ToString()))}）");
             Flash();
-            await CardPileCmd.AddGeneratedCardsToCombat(recall, PileType.Hand, player);
+            foreach (CardModel card in recall)
+            {
+                await CardPileCmd.Add(card, PileType.Hand, CardPilePosition.Bottom);
+            }
         }
         else
         {

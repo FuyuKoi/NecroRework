@@ -1,9 +1,11 @@
+﻿using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Monsters;
+using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.ValueProps;
 
 namespace NecroRework.Cards;
@@ -31,6 +33,13 @@ public sealed class OminousPunch : CardModel
     public override IEnumerable<CardKeyword> CanonicalKeywords =>
         [CardKeyword.Ethereal, CardKeyword.Exhaust];
 
+    // 卡面写「格挡」「灾厄」，把这两个词条挂到卡旁边。
+    protected override IEnumerable<IHoverTip> ExtraHoverTips =>
+    [
+        HoverTipFactory.Static(StaticHoverTip.Block),
+        HoverTipFactory.FromPower<DoomPower>((int)DoomToOsty)
+    ];
+
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {
         if (cardPlay.Target is not { } target) return;
@@ -45,6 +54,7 @@ public sealed class OminousPunch : CardModel
 
         await CreatureCmd.GainBlock(Owner.Creature, DynamicVars.Block, cardPlay);
 
+        // 第三段：奥斯提获得灾厄（原设计）。
         await DoomUtil.ApplyToOsty(choiceContext, this, DoomToOsty);
     }
 

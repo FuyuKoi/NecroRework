@@ -1,4 +1,4 @@
-using MegaCrit.Sts2.Core.CardSelection;
+﻿using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
@@ -6,6 +6,7 @@ using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Cards;
 using MegaCrit.Sts2.Core.ValueProps;
+using MegaCrit.Sts2.Core.HoverTips;
 
 namespace NecroRework.Cards;
 
@@ -25,6 +26,15 @@ public sealed class LookBack : CardModel
 
     protected override IEnumerable<DynamicVar> CanonicalVars =>
         [new BlockVar(7m, ValueProp.Move)];
+
+    // 卡面提到「灵魂」「虚无」「消耗」，把这三类词条都挂到卡旁边（灵魂同时给升级版）。
+    protected override IEnumerable<IHoverTip> ExtraHoverTips =>
+    [
+        HoverTipFactory.FromCard<Soul>(),
+        HoverTipFactory.FromCard<Soul>(true),
+        HoverTipFactory.FromKeyword(CardKeyword.Ethereal),
+        HoverTipFactory.FromKeyword(CardKeyword.Exhaust)
+    ];
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {

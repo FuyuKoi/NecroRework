@@ -1,8 +1,9 @@
-using MegaCrit.Sts2.Core.Combat;
+﻿using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
@@ -13,16 +14,16 @@ namespace NecroRework.Cards;
 
 /// <summary>
 /// 掩护：2 费攻击（罕见/蓝卡）。
-/// 奥斯提造成 9 点伤害 → 召唤 7（11） → 你获得等同于「召唤之后他的生命值」的格挡。
+/// 奥斯提造成 7 点伤害 → 召唤 5（8） → 你获得等同于「召唤之后他的生命值」的格挡。
 /// （先打伤害再召唤，所以格挡是「原来的血 + 这次召唤涨的血」。）
 /// </summary>
 public sealed class Cover : CardModel
 {
-    private const decimal OstyDamage = 9m;
+    private const decimal OstyDamage = 7m;
 
-    private const decimal Summon = 7m;
+    private const decimal Summon = 5m;
 
-    private const decimal SummonUpgrade = 4m;
+    private const decimal SummonUpgrade = 3m;
 
     public Cover()
         : base(2, CardType.Attack, CardRarity.Uncommon, TargetType.AnyEnemy)
@@ -62,6 +63,13 @@ public sealed class Cover : CardModel
     {
         DynamicVars.Summon.UpgradeValueBy(SummonUpgrade);
     }
+
+    // 卡面写「召唤」「格挡」，把这两个词条挂到卡旁边。
+    protected override IEnumerable<IHoverTip> ExtraHoverTips =>
+    [
+        HoverTipFactory.Static(StaticHoverTip.SummonDynamic, DynamicVars.Summon),
+        HoverTipFactory.Static(StaticHoverTip.Block)
+    ];
 
     /// <summary>
     /// 「（获得 X 点格挡）」只在战斗中出现（图鉴/牌堆里不显示）。

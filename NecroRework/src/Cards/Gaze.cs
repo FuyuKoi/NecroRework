@@ -1,8 +1,9 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Powers;
@@ -22,8 +23,16 @@ public sealed class Gaze : CardModel
 
     protected override IEnumerable<DynamicVar> CanonicalVars =>
     [
-        new EnergyVar(2),
+        new EnergyVar(1),
         new CardsVar(1),
+    ];
+
+    // 卡面写「消耗」，这张牌本身没有消耗关键词（是被消耗时触发），所以手动挂词条；
+    // 再加上「能量」的说明（牌面写着下回合获得的费用）。
+    protected override IEnumerable<IHoverTip> ExtraHoverTips =>
+    [
+        HoverTipFactory.FromKeyword(CardKeyword.Exhaust),
+        HoverTipFactory.ForEnergy(this)
     ];
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
@@ -62,6 +71,7 @@ public sealed class Gaze : CardModel
 
     protected override void OnUpgrade()
     {
+        DynamicVars.Energy.UpgradeValueBy(1m);
         DynamicVars.Cards.UpgradeValueBy(1m);
     }
 }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -51,10 +51,12 @@ internal static class Reworks
         },
         [typeof(Unleash)] = (CardModel _) =>
         {
-            return new DynamicVar[3]
+            // Summon 只是「每几点召唤 +1 伤害」的步长，真正算伤害在 CombatStats.SummonDamageBonus 里读它。
+            return new DynamicVar[4]
             {
                 (DynamicVar)new CalculationBaseVar(6m),
                 (DynamicVar)new ExtraDamageVar(1m).FromOsty(),
+                (DynamicVar)new SummonVar(2m),
                 (DynamicVar)((CalculatedVar)new CalculatedDamageVar((ValueProp)8).FromOsty()).WithMultiplier((Func<CardModel, Creature, decimal>)((CardModel card, Creature val) => CombatStats.SummonDamageBonus(card)))
             };
         },
@@ -79,7 +81,7 @@ internal static class Reworks
         {
             return new DynamicVar[2]
             {
-                (DynamicVar)new PowerVar<DanseMacabrePower>(5m),
+                (DynamicVar)new PowerVar<DanseMacabrePower>(4m),
                 (DynamicVar)new EnergyVar(2)
             };
         },
@@ -182,7 +184,7 @@ internal static class Reworks
         {
             return new DynamicVar[2]
             {
-                (DynamicVar)new DamageVar(8m, (ValueProp)8),
+                (DynamicVar)new DamageVar(6m, (ValueProp)8),
                 (DynamicVar)new PowerVar<VulnerablePower>(2m)
             };
         },
@@ -207,10 +209,15 @@ internal static class Reworks
                 (DynamicVar)new EnergyVar(1)
             };
         },
-        [typeof(SpiritOfAsh)] = (CardModel _) => Array.Empty<DynamicVar>(),
-        [typeof(Wisp)] = (CardModel _) =>
+        // 灰烬之灵：保留原版键名 BlockOnExhaust（原版 OnUpgrade 会读它，缺了升级会抛
+        // KeyNotFoundException），数值与能力里真正用的常量共用一份，卡面再引用这个键。
+        [typeof(SpiritOfAsh)] = (CardModel _) =>
         {
-            return new DynamicVar[1] { (DynamicVar)new EnergyVar(2) };
+            return new DynamicVar[2]
+            {
+                new DynamicVar("BlockOnExhaust", SpiritOfAshReworkPower.BlockPerLayer),
+                (DynamicVar)new IntVar("PickCount", 1m)
+            };
         },
         [typeof(Scourge)] = (CardModel _) =>
         {
@@ -221,14 +228,15 @@ internal static class Reworks
                 (DynamicVar)new IntVar("Transfer", 10m)
             };
         },
-        [typeof(DeathsDoor)] = (CardModel _) =>
-        {
-            return new DynamicVar[2]
-            {
-                (DynamicVar)new BlockVar(7m, (ValueProp)8),
-                (DynamicVar)new RepeatVar(2)
-            };
-        },
+        // 死亡之门：升级前后各 -1，等于回到原版数值 6(7)，所以这里不再覆盖。
+        // [typeof(DeathsDoor)] = (CardModel _) =>
+        // {
+        //     return new DynamicVar[2]
+        //     {
+        //         (DynamicVar)new BlockVar(7m, (ValueProp)8),
+        //         (DynamicVar)new RepeatVar(2)
+        //     };
+        // },
         [typeof(Delay)] = (CardModel _) =>
         {
             return new DynamicVar[2]
@@ -237,13 +245,14 @@ internal static class Reworks
                 (DynamicVar)new EnergyVar(1)
             };
         },
-        [typeof(Oblivion)] = (CardModel _) => new DynamicVar[1] { (DynamicVar)(object)new PowerVar<DoomPower>(5m) },
+        [typeof(Oblivion)] = (CardModel _) => new DynamicVar[1] { (DynamicVar)(object)new PowerVar<DoomPower>(4m) },
         [typeof(NegativePulse)] = (CardModel _) =>
         {
-            return new DynamicVar[2]
+            return new DynamicVar[3]
             {
                 (DynamicVar)new BlockVar(9m, (ValueProp)8),
-                (DynamicVar)new PowerVar<DoomPower>(12m)
+                (DynamicVar)new PowerVar<DoomPower>(12m),
+                (DynamicVar)new IntVar("SelfDoom", 6m)
             };
         },
         [typeof(Invoke)] = (CardModel _) =>
@@ -272,10 +281,12 @@ internal static class Reworks
         },
         [typeof(SicEm)] = (CardModel _) =>
         {
-            return new DynamicVar[2]
+            // Summon 只用于卡面展示：每次触发的召唤量固定 5（升级也不变，避免叠加）。
+            return new DynamicVar[3]
             {
                 (DynamicVar)new OstyDamageVar(8m, (ValueProp)8),
-                (DynamicVar)new PowerVar<RelentlessPower>(1m)
+                (DynamicVar)new PowerVar<RelentlessPower>(1m),
+                (DynamicVar)new SummonVar(RelentlessPower.SummonPerTrigger)
             };
         },
         [typeof(PullFromBelow)] = (CardModel _) =>
@@ -327,7 +338,14 @@ internal static class Reworks
         // 血肉戏法：5 → 8（升级 +3 → 11）
         [typeof(SleightOfFlesh)] = (CardModel _) => new DynamicVar[1] { (DynamicVar)(object)new PowerVar<SleightOfFleshPower>(8m) },
         // 得力助手：4 → 5（升级 +2 → 7）
-        [typeof(RightHandHand)] = (CardModel _) => new DynamicVar[1] { (DynamicVar)new OstyDamageVar(5m, ValueProp.Move) },
+        // 得力助手：伤害 5（升级 7）。
+        // 注意 EnergyVar(2) 必须保留——原版 AfterCardPlayedLate 里要读 DynamicVars.Energy
+        // 来判断「本回合打出的能量 >= 2 就回手」，漏了它会在打出时抛 KeyNotFoundException 把战斗搞死。
+        [typeof(RightHandHand)] = (CardModel _) => new DynamicVar[2]
+        {
+            (DynamicVar)new OstyDamageVar(5m, ValueProp.Move),
+            (DynamicVar)new EnergyVar(2),
+        },
         [typeof(Haunt)] = (CardModel _) =>
         {
             return new DynamicVar[1] { (DynamicVar)new HpLossVar(8m) };
@@ -368,7 +386,8 @@ internal static class Reworks
         },
         [typeof(Shroud)] = (CardModel _) =>
         {
-            return new DynamicVar[1] { (DynamicVar)new BlockVar(4m, (ValueProp)4) };
+            // 厄运之衣：3 点格挡（升级 +2 → 5）
+            return new DynamicVar[1] { (DynamicVar)new BlockVar(3m, (ValueProp)4) };
         },
         [typeof(Defy)] = (CardModel _) =>
         {
@@ -447,7 +466,7 @@ internal static class Reworks
         },
         [typeof(Reanimate)] = (CardModel _) =>
         {
-            return new DynamicVar[1] { (DynamicVar)new SummonVar(10m) };
+            return new DynamicVar[1] { (DynamicVar)new SummonVar(5m) };
         }
     };
 
@@ -525,7 +544,7 @@ internal static class Reworks
         [typeof(Wisp)] = async (CardModel card, PlayerChoiceContext ctx, CardPlay play) =>
         {
             await PlayerCmd.GainEnergy((decimal)((DynamicVar)card.DynamicVars.Energy).IntValue, card.Owner);
-            await DoomUtil.ApplyToSelf(ctx, card, 6m);
+            await DoomUtil.ApplyToSelf(ctx, card, ((DynamicVar)card.DynamicVars.Doom).BaseValue);
         },
         [typeof(Scourge)] = async (CardModel card, PlayerChoiceContext ctx, CardPlay play) =>
         {
@@ -541,7 +560,7 @@ internal static class Reworks
         [typeof(NegativePulse)] = async (CardModel card, PlayerChoiceContext ctx, CardPlay play) =>
         {
             await CreatureCmd.TriggerAnim(card.Owner.Creature, "Cast", card.Owner.Character.CastAnimDelay);
-            await DoomUtil.ApplyToSelf(ctx, card, 4m);
+            await DoomUtil.ApplyToSelf(ctx, card, card.DynamicVars["SelfDoom"].BaseValue);
             await CreatureCmd.GainBlock(card.Owner.Creature, card.DynamicVars.Block, play, false);
             foreach (Creature hittableEnemy in card.CombatState.HittableEnemies)
             {
@@ -584,7 +603,7 @@ internal static class Reworks
             if (target != null)
             {
                 await CreatureCmd.TriggerAnim(card.Owner.Creature, "Cast", card.Owner.Character.CastAnimDelay);
-                await DoomUtil.ApplyToSelf(ctx, card, 7m);
+                await DoomUtil.ApplyToSelf(ctx, card, 9m);
                 await CreatureCmd.GainBlock(card.Owner.Creature, card.DynamicVars.Block, play, false);
                 await PowerCmd.Apply<WeakPower>(ctx, target, ((DynamicVar)card.DynamicVars.Weak).BaseValue, card.Owner.Creature, card, false);
             }
@@ -626,17 +645,24 @@ internal static class Reworks
                     RelentlessPower.EndSuppress();
                 }
                 await PowerCmd.Apply<RelentlessPower>(ctx, target, card.DynamicVars["RelentlessPower"].BaseValue, card.Owner.Creature, card, false);
-                if (!hadCounter)
+
+                // 计数器只在「敌人真的挂上了紧追不放」时存在：
+                // 被人工制品挡掉的话这里拿不到能力，就不要凭空造一个永远不消失的计数器。
+                RelentlessPower power = target.GetPower<RelentlessPower>();
+                if (power == null)
+                {
+                    if (target.GetPower<SicEmCounterPower>() is { } stale)
+                    {
+                        await PowerCmd.Remove(stale);
+                    }
+                }
+                else if (!hadCounter)
                 {
                     await PowerCmd.Apply<SicEmCounterPower>(ctx, target, 2m, card.Owner.Creature, card, false);
                 }
                 else
                 {
-                    RelentlessPower power = target.GetPower<RelentlessPower>();
-                    if (power != null)
-                    {
-                        await power.Advance(ctx);
-                    }
+                    await power.Advance(ctx);
                 }
             }
         },
@@ -934,7 +960,10 @@ internal static class Reworks
             {
                 await CardCmd.TransformTo<Soul>(item7, (CardPreviewStyle)1);
             }
-            CardModel val = PileTypeExtensions.GetPile((PileType)2, owner).Cards.LastOrDefault();
+            // 按「节点横坐标」取最右边那张：CardPile.Cards 是插入顺序，
+            // 打出别的牌之后列表顺序和玩家看到的左→右排布可能对不上。
+            CardModel val = HandOrder.RightmostCard(owner)
+                ?? PileTypeExtensions.GetPile((PileType)2, owner).Cards.LastOrDefault();
             if (val != null)
             {
                 await CardCmd.TransformTo<Soul>(val, (CardPreviewStyle)1);
@@ -1183,11 +1212,12 @@ internal static class Reworks
         {
             ((DynamicVar)card.DynamicVars.Summon).UpgradeValueBy(1m);
         },
-        // 扫荡凝视：升级 5 → 9（+4，原版是 +5）
-        [typeof(SweepingGaze)] = (CardModel card) =>
-        {
-            ((DynamicVar)card.DynamicVars.OstyDamage).UpgradeValueBy(4m);
-        },
+        // 扫荡凝视：升级数值改到 UpgradeReplace 里整段处理（5 → 8），
+        // 因为 Upgrade 表是在原版 OnUpgrade 之后追加，原版 +5 再叠我们的 +4 会变成 14。
+        // [typeof(SweepingGaze)] = (CardModel card) =>
+        // {
+        //     ((DynamicVar)card.DynamicVars.OstyDamage).UpgradeValueBy(4m);
+        // },
         [typeof(NecroMastery)] = (CardModel card) =>
         {
             card.EnergyCost.UpgradeBy(-1);
@@ -1208,14 +1238,53 @@ internal static class Reworks
 
     public static readonly Dictionary<Type, Action<CardModel>> UpgradeReplace = new Dictionary<Type, Action<CardModel>>
     {
-        [typeof(DevourLife)] = (CardModel card) =>
-        {
-            card.EnergyCost.UpgradeBy(-1);
-        },
+        // 灰烬之灵：整段替换（只降费）。原版 OnUpgrade 会读 BlockOnExhaust 再 +1，
+        // 我们不想改格挡，所以必须整段接管，否则升级会变成 0 费 + 4 格挡。
         [typeof(SpiritOfAsh)] = (CardModel card) =>
         {
             card.EnergyCost.UpgradeBy(-1);
         },
+        // 吸取生命：原版升级读的是 DevourLifePower 这个键，我们把 Vars 换成 DevourLifeReworkPower 了，
+        // 不整段接管会在升级时抛 KeyNotFoundException。
+        [typeof(DevourLife)] = (CardModel card) =>
+        {
+            ((DynamicVar)card.DynamicVars.Energy).UpgradeValueBy(1m);
+        },
+        // 倒数计时：同上，原版读 CountdownPower，我们换成了 CountdownReworkPower。
+        [typeof(Countdown)] = (CardModel card) =>
+        {
+            card.DynamicVars["CountdownReworkPower"].UpgradeValueBy(2m);
+        },
+        // 紧追不放：原版读 SicEmPower（我们换成了 RelentlessPower），整段接管：
+        // 伤害 +3、易伤 +1。
+        [typeof(SicEm)] = (CardModel card) =>
+        {
+            // 召唤固定 5，升级不加；升级只加伤害（+3）和每次触发的易伤层数（+1）。
+            ((DynamicVar)card.DynamicVars.OstyDamage).UpgradeValueBy(3m);
+            card.DynamicVars["RelentlessPower"].UpgradeValueBy(1m);
+        },
+
+        // 扫荡凝视：5 → 8（+3，原版是 +5）
+        [typeof(SweepingGaze)] = (CardModel card) =>
+        {
+            ((DynamicVar)card.DynamicVars.OstyDamage).UpgradeValueBy(3m);
+        },
+        // 厄运之衣：3 → 5（+2，原版是 +1）
+        [typeof(Shroud)] = (CardModel card) =>
+        {
+            ((DynamicVar)card.DynamicVars.Block).UpgradeValueBy(2m);
+        },
+        // 死亡之舞：基础 4 点格挡；升级 +2，即升级后 6。
+        [typeof(DanseMacabre)] = (CardModel card) =>
+        {
+            card.DynamicVars["DanseMacabrePower"].UpgradeValueBy(2m);
+        },
+        [typeof(DevourLife)] = (CardModel card) =>
+        {
+            card.EnergyCost.UpgradeBy(-1);
+        },
+        // [typeof(SpiritOfAsh)] 升级改到 UpgradeReplace（原版 OnUpgrade 读 BlockOnExhaust 还会额外 +1，
+        // 而我们只想降费），见下方 UpgradeReplace。
         [typeof(SentryMode)] = (CardModel _) =>
         {
         },
@@ -1229,11 +1298,12 @@ internal static class Reworks
             ((DynamicVar)card.DynamicVars.Summon).UpgradeValueBy(2m);
             card.DynamicVars["GuardTurns"].UpgradeValueBy(1m);
         },
-        [typeof(SicEm)] = (CardModel card) =>
-        {
-            ((DynamicVar)card.DynamicVars.OstyDamage).UpgradeValueBy(3m);
-            card.DynamicVars["RelentlessPower"].UpgradeValueBy(1m);
-        },
+        // 紧追不放的升级已整段搬到 UpgradeReplace（还要顺带给召唤 +2），这里保留原写法备查：
+        // [typeof(SicEm)] = (CardModel card) =>
+        // {
+        //     ((DynamicVar)card.DynamicVars.OstyDamage).UpgradeValueBy(3m);
+        //     card.DynamicVars["RelentlessPower"].UpgradeValueBy(1m);
+        // },
         [typeof(Spur)] = (CardModel card) =>
         {
             ((DynamicVar)card.DynamicVars.Heal).UpgradeValueBy(3m);
@@ -1319,7 +1389,8 @@ internal static class Reworks
         [typeof(DeathsDoor)] = new CardKeyword[1] { (CardKeyword)5 },
         [typeof(EndOfDays)] = new CardKeyword[1] { (CardKeyword)5 },
         [typeof(Snap)] = new CardKeyword[1] { (CardKeyword)5 },
-        [typeof(Rattle)] = new CardKeyword[1] { (CardKeyword)5 },
+        // 猛晃不再自带保留（用户 2026-11-26 要求移除）；保留原写法备查：
+        // [typeof(Rattle)] = new CardKeyword[1] { (CardKeyword)5 },
         [typeof(Undeath)] = new CardKeyword[1] { (CardKeyword)2 },
         [typeof(TimesUp)] = new CardKeyword[1] { (CardKeyword)5 },
         [typeof(Transfigure)] = new CardKeyword[2]
@@ -1337,7 +1408,9 @@ internal static class Reworks
         {
             (CardKeyword)1,
             (CardKeyword)5
-        }
+        },
+        // 灰烬之灵：卡面写的是「固有」，之前漏了这条关键词，导致第一回合不会上手。
+        [typeof(SpiritOfAsh)] = new CardKeyword[1] { CardKeyword.Innate }
     };
 
     public static readonly Dictionary<Type, CardType> Types = new Dictionary<Type, CardType> { [typeof(Misery)] = (CardType)2 };
@@ -1352,11 +1425,109 @@ internal static class Reworks
 
     public static readonly Dictionary<Type, Func<CardModel, IEnumerable<IHoverTip>>> Tips = new Dictionary<Type, Func<CardModel, IEnumerable<IHoverTip>>>
     {
-        [typeof(Spur)] = (CardModel _) => Array.Empty<IHoverTip>(),
-        [typeof(Cleanse)] = (CardModel _) => new IHoverTip[1] { HoverTipFactory.FromKeyword((CardKeyword)1) },
-        [typeof(SentryMode)] = (CardModel card) => new IHoverTip[1] { HoverTipFactory.FromCard<SweepingGaze>(card.IsUpgraded) },
-        // 大限已至：悬停时把「精神过载」的能力详情窗也列出来（15 层，和卡牌给的一致）
-        [typeof(TimesUp)] = (CardModel _) => new IHoverTip[1] { HoverTipFactory.FromPower<NeurosurgePower>(15) }
+        // 出击：卡面写「每召唤2」，把「召唤」的词条解释挂到卡旁边（数值取卡自己的 Summon 变量）。
+        [typeof(Unleash)] = (CardModel card) => new IHoverTip[1]
+        {
+            HoverTipFactory.Static(StaticHoverTip.SummonDynamic, new DynamicVar[1] { (DynamicVar)card.DynamicVars.Summon })
+        },
+        // 紧追不放：卡面写「易伤」「召唤」。
+        [typeof(SicEm)] = (CardModel card) => new IHoverTip[2]
+        {
+            HoverTipFactory.FromPower<VulnerablePower>(),
+            HoverTipFactory.Static(StaticHoverTip.SummonDynamic, new DynamicVar[1] { (DynamicVar)card.DynamicVars.Summon })
+        },
+        // 增生：卡面写「格挡」。
+        [typeof(Spur)] = (CardModel _) => new IHoverTip[1] { HoverTipFactory.Static(StaticHoverTip.Block) },
+        // 洁净：卡面写「灾厄」「格挡」「消耗」。
+        [typeof(Cleanse)] = (CardModel card) => new IHoverTip[3]
+        {
+            HoverTipFactory.FromPower<DoomPower>(card.DynamicVars.Doom.IntValue),
+            HoverTipFactory.Static(StaticHoverTip.Block),
+            HoverTipFactory.FromKeyword(CardKeyword.Exhaust)
+        },
+        // 哨卫模式：卡面写「荡涤凝视」，按升级状态展示对应版本。
+        [typeof(SentryMode)] = (CardModel card) => new IHoverTip[1]
+        {
+            HoverTipFactory.FromCard<SweepingGaze>(card.IsUpgraded)
+        },
+        // 大限已至：悬停时把「精神过载」的能力详情窗也列出来（15 层，和卡牌给的一致）。
+        [typeof(TimesUp)] = (CardModel _) => new IHoverTip[1] { HoverTipFactory.FromPower<NeurosurgePower>(15) },
+        // 精神过载：卡面写「精神过载」「灾厄」「能量」。
+        [typeof(Neurosurge)] = (CardModel card) => new IHoverTip[3]
+        {
+            HoverTipFactory.FromPower<NeurosurgePower>(card.DynamicVars["NeurosurgePower"].IntValue),
+            HoverTipFactory.FromPower<DoomPower>(),
+            HoverTipFactory.ForEnergy(card)
+        },
+        // 玷污：卡面写「灾厄」，挂灾厄词条（层数取卡自己的 Doom 变量）。
+        [typeof(Defile)] = (CardModel card) => new IHoverTip[1]
+        {
+            HoverTipFactory.FromPower<DoomPower>(card.DynamicVars.Doom.IntValue)
+        },
+        // 鬼火：卡面写「灾厄」，挂灾厄词条。
+        [typeof(Wisp)] = (CardModel card) => new IHoverTip[1]
+        {
+            HoverTipFactory.FromPower<DoomPower>(card.DynamicVars.Doom.IntValue)
+        },
+        // 守墓人：卡面写「灵魂」，升级后给的是灵魂+，所以提示跟着升级状态走。
+        [typeof(GraveWarden)] = (CardModel card) => new IHoverTip[1]
+        {
+            HoverTipFactory.FromCard<Soul>(card.IsUpgraded)
+        },
+        // 碎骨：卡面写「格挡」「虚弱」。
+        [typeof(BoneShards)] = (CardModel _) => new IHoverTip[2]
+        {
+            HoverTipFactory.Static(StaticHoverTip.Block),
+            HoverTipFactory.FromPower<WeakPower>()
+        },
+        // 切断：卡面写「灵魂」，升级后全是灵魂+。
+        [typeof(Severance)] = (CardModel card) => new IHoverTip[1]
+        {
+            HoverTipFactory.FromCard<Soul>(card.IsUpgraded)
+        },
+        // 捕捉灵魂：卡面写「灵魂」「力量」。
+        [typeof(CaptureSpirit)] = (CardModel _) => new IHoverTip[2]
+        {
+            HoverTipFactory.FromCard<Soul>(),
+            HoverTipFactory.FromPower<StrengthPower>()
+        },
+        // 守护者：卡面写「召唤」「消耗」。
+        [typeof(Protector)] = (CardModel _) => new IHoverTip[2]
+        {
+            HoverTipFactory.Static(StaticHoverTip.SummonDynamic, new DynamicVar[1] { new SummonVar(2m) }),
+            HoverTipFactory.FromKeyword(CardKeyword.Exhaust)
+        },
+        // 亡灵精通：卡面写「召唤」「格挡」。
+        [typeof(NecroMastery)] = (CardModel card) => new IHoverTip[2]
+        {
+            HoverTipFactory.Static(StaticHoverTip.SummonDynamic, new DynamicVar[1] { (DynamicVar)card.DynamicVars.Summon }),
+            HoverTipFactory.Static(StaticHoverTip.Block)
+        },
+        // 灰烬之灵：卡面写「飘荡」「格挡」「虚无」。
+        [typeof(SpiritOfAsh)] = (CardModel _) => new IHoverTip[3]
+        {
+            HoverTipFactory.FromEnchantment<DriftEnchantment>().First(),
+            HoverTipFactory.Static(StaticHoverTip.Block),
+            HoverTipFactory.FromKeyword(CardKeyword.Ethereal)
+        },
+        // 友谊：卡面写「力量」「能量」。
+        [typeof(Friendship)] = (CardModel card) => new IHoverTip[2]
+        {
+            HoverTipFactory.FromPower<StrengthPower>(),
+            HoverTipFactory.ForEnergy(card)
+        },
+        // 领会：卡面写「灾厄」，挂灾厄词条（层数取卡自己的 Doom 变量）。
+        [typeof(Parse)] = (CardModel card) => new IHoverTip[1] { HoverTipFactory.FromPower<DoomPower>(card.DynamicVars.Doom.IntValue) },
+        // 苦难：卡面写「虚弱」。
+        [typeof(Misery)] = (CardModel _) => new IHoverTip[1] { HoverTipFactory.FromPower<WeakPower>() },
+        // 钙化：卡面写「格挡」。
+        [typeof(Calcify)] = (CardModel _) => new IHoverTip[1] { HoverTipFactory.Static(StaticHoverTip.Block) },
+        // 死亡之舞：卡面写「格挡」。
+        [typeof(DanseMacabre)] = (CardModel _) => new IHoverTip[1] { HoverTipFactory.Static(StaticHoverTip.Block) },
+        // 灵魂风暴：卡面写「飘荡」，挂附魔词条。
+        [typeof(SoulStorm)] = (CardModel _) => HoverTipFactory.FromEnchantment<DriftEnchantment>(),
+        // 吊杀：卡面写「虚弱」。
+        [typeof(Hang)] = (CardModel _) => new IHoverTip[1] { HoverTipFactory.FromPower<WeakPower>() }
     };
 
     public static readonly HashSet<Type> NoGainsBlock = new HashSet<Type> { typeof(PullAggro) };

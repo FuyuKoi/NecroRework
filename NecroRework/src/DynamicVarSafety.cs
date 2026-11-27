@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
+using MegaCrit.Sts2.Core.ValueProps;
 
 namespace NecroRework;
 
@@ -30,8 +31,15 @@ internal static class DynamicVarSafety
         patched += Patch(harmony, nameof(DynamicVarSet.CalculationBase), nameof(BasePrefix));
         patched += Patch(harmony, nameof(DynamicVarSet.CalculationExtra), nameof(ExtraPrefix));
         patched += Patch(harmony, nameof(DynamicVarSet.ExtraDamage), nameof(ExtraDamagePrefix));
+        patched += Patch(harmony, nameof(DynamicVarSet.Energy), nameof(EnergyPrefix));
+        patched += Patch(harmony, nameof(DynamicVarSet.Cards), nameof(CardsPrefix));
+        patched += Patch(harmony, nameof(DynamicVarSet.Block), nameof(BlockPrefix));
+        patched += Patch(harmony, nameof(DynamicVarSet.Summon), nameof(SummonPrefix));
+        patched += Patch(harmony, nameof(DynamicVarSet.Damage), nameof(DamagePrefix));
+        patched += Patch(harmony, nameof(DynamicVarSet.Heal), nameof(HealPrefix));
+        patched += Patch(harmony, nameof(DynamicVarSet.OstyDamage), nameof(OstyDamagePrefix));
 
-        Main.Log.Info($"[{Main.ModId}] 动态变量保险丝：已挂载 {patched}/3（缺 CalculationBase / CalculationExtra / ExtraDamage 时返回 0，不再抛异常）");
+        Main.Log.Info($"[{Main.ModId}] 动态变量保险丝：已挂载 {patched}/10（缺 CalculationBase / CalculationExtra / ExtraDamage / Energy / Cards / Block / Summon / Damage / Heal / OstyDamage 时返回 0，不再抛异常）");
     }
 
     private static int Patch(Harmony harmony, string property, string prefix)
@@ -69,6 +77,27 @@ internal static class DynamicVarSafety
     {
         return TryFallback(__instance, "ExtraDamage", () => new ExtraDamageVar(0m), ref __result);
     }
+
+    private static bool EnergyPrefix(DynamicVarSet __instance, ref EnergyVar __result) =>
+        TryFallback(__instance, "Energy", () => new EnergyVar(0), ref __result);
+
+    private static bool CardsPrefix(DynamicVarSet __instance, ref CardsVar __result) =>
+        TryFallback(__instance, "Cards", () => new CardsVar(0), ref __result);
+
+    private static bool BlockPrefix(DynamicVarSet __instance, ref BlockVar __result) =>
+        TryFallback(__instance, "Block", () => new BlockVar(0m, ValueProp.Unpowered), ref __result);
+
+    private static bool SummonPrefix(DynamicVarSet __instance, ref SummonVar __result) =>
+        TryFallback(__instance, "Summon", () => new SummonVar(0m), ref __result);
+
+    private static bool DamagePrefix(DynamicVarSet __instance, ref DamageVar __result) =>
+        TryFallback(__instance, "Damage", () => new DamageVar(0m, ValueProp.Move), ref __result);
+
+    private static bool HealPrefix(DynamicVarSet __instance, ref HealVar __result) =>
+        TryFallback(__instance, "Heal", () => new HealVar(0m), ref __result);
+
+    private static bool OstyDamagePrefix(DynamicVarSet __instance, ref OstyDamageVar __result) =>
+        TryFallback(__instance, "OstyDamage", () => new OstyDamageVar(0m, ValueProp.Move), ref __result);
 
     private static bool TryFallback<T>(DynamicVarSet set, string key, System.Func<T> factory, ref T result) where T : DynamicVar
     {

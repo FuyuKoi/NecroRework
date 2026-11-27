@@ -55,22 +55,18 @@ public sealed class ReanimateWardPower : PowerModel
         return 1m;
     }
 
-    /// <summary>
-    /// 护佑期间灾厄叠不上去 —— 用户口径「就和灾厄没叠满一样」。
-    /// 这比「叠满了但不死」安全得多：灾厄层数不会超过当前生命值，
-    /// 原版/我们的灾厄处死判定（CurrentHp &lt;= 灾厄）根本不会被触发，也就不会反复 Kill 卡死。
-    /// </summary>
-    public override bool TryModifyPowerAmountReceived(PowerModel canonicalPower, Creature target, decimal amount, Creature? applier, out decimal modifiedAmount)
-    {
-        modifiedAmount = amount;
-
-        if (canonicalPower is not DoomPower) return false;
-        if (amount <= 0m) return false;
-        if (!IsProtected(target)) return false;
-
-        modifiedAmount = 0m;
-        return true;
-    }
+    // 2026-11-26：用户要求护佑期间「照样能获得灾厄，只是不会死于灾厄」，
+    // 所以不再拦灾厄的施加（下面 ShouldDoomTrigger 的 prefix 仍然把处死判定整个关掉）。
+    // 原实现留档：
+    // public override bool TryModifyPowerAmountReceived(PowerModel canonicalPower, Creature target, decimal amount, Creature? applier, out decimal modifiedAmount)
+    // {
+    //     modifiedAmount = amount;
+    //     if (canonicalPower is not DoomPower) return false;
+    //     if (amount <= 0m) return false;
+    //     if (!IsProtected(target)) return false;
+    //     modifiedAmount = 0m;
+    //     return true;
+    // }
 
     private bool IsProtected(Creature creature)
     {

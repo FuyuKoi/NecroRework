@@ -39,7 +39,9 @@ public sealed class GhostLanternPower : PowerModel
     public override int DisplayAmount => Amount;
 
     /// <summary>只为了卡面/悬停里的能量图标（{Energy:energyIcons()}），不参与任何数值计算。</summary>
-    protected override IEnumerable<DynamicVar> CanonicalVars => [new EnergyVar(EnergyPerTrigger)];
+    // 注：能力身上这个 CanonicalVars 实际没有被应用到 DynamicVars（日志里 variables 只有 Amount），
+    // 所以能力描述里不能用 {Energy:energyIcons()}，改成纯文字的「1点费用」。这里先留着不影响任何逻辑。
+    // protected override IEnumerable<DynamicVar> CanonicalVars => [new EnergyVar(EnergyPerTrigger)];
 
     protected override object InitInternalData() => new Data();
 

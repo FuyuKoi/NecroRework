@@ -110,7 +110,8 @@ public static class Main
         ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(TurnToDust));
         ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(RebornAnew));
         ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(FleetingMoment));
+        ModHelper.AddModelToPool(typeof(NecrobinderCardPool), typeof(Wavering));
 
-        Log.Info($"[{ModId}] 已注册新卡牌 LookBack / Touch / Retrieve / Exchange / CraftSpirit / Gather / Continuation / GhostLantern / Drag / OminousPunch / Cover / Sublimation / LifeAndDeath / Overdraft / AllIsVoid / BeginnerMind / FleetingLife / Mend / Gaze / SoulGather / Forsake / GraveFriend / SoulBarrier / RiverOfOblivion / WorldBurden / LivingEnd / TurnToDust / RebornAnew -> NecrobinderCardPool");
+        Log.Info($"[{ModId}] 已注册新卡牌 LookBack / Touch / Retrieve / Exchange / CraftSpirit / Gather / Continuation / GhostLantern / Drag / OminousPunch / Cover / Sublimation / LifeAndDeath / Overdraft / AllIsVoid / BeginnerMind / FleetingLife / Mend / Gaze / SoulGather / Forsake / GraveFriend / SoulBarrier / RiverOfOblivion / WorldBurden / LivingEnd / TurnToDust / RebornAnew / Wavering -> NecrobinderCardPool");
     }
 }

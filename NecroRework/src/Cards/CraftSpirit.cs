@@ -1,9 +1,10 @@
-using MegaCrit.Sts2.Core.Commands;
+﻿using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Cards;
 using MegaCrit.Sts2.Core.ValueProps;
+using MegaCrit.Sts2.Core.HoverTips;
 
 namespace NecroRework.Cards;
 
@@ -28,6 +29,13 @@ public sealed class CraftSpirit : CardModel
     protected override bool IsPlayable => IsCanonical || !Owner.IsOstyMissing;
 
     protected override bool ShouldGlowRedInternal => !IsCanonical && Owner.IsOstyMissing;
+
+    // 卡面写「灵魂（升级后灵魂+）」，两个版本都挂出来。
+    protected override IEnumerable<IHoverTip> ExtraHoverTips =>
+    [
+        HoverTipFactory.FromCard<Soul>(),
+        HoverTipFactory.FromCard<Soul>(true)
+    ];
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {

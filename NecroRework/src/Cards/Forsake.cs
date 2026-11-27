@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using MegaCrit.Sts2.Core.CardSelection;
@@ -6,7 +6,9 @@ using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.ValueProps;
 using NecroRework.Enchantments;
 
@@ -70,6 +72,13 @@ public sealed class Forsake : CardModel
 
         await CardCmd.Discard(choiceContext, picked);
     }
+
+    // 卡面写「灾厄」「飘荡」，把这两个词条挂到卡旁边。
+    protected override IEnumerable<IHoverTip> ExtraHoverTips =>
+    [
+        HoverTipFactory.FromPower<DoomPower>(),
+        .. HoverTipFactory.FromEnchantment<DriftEnchantment>()
+    ];
 
     protected override void OnUpgrade()
     {

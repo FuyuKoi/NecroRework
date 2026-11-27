@@ -24,7 +24,13 @@ internal static class PassiveExhaustLog
     /// 被消耗的牌会从 CombatState 里摘掉，留着实例既不能塞回手牌（引擎会抛
     /// 「must be added to a CombatState」），也没法跨回合复用 —— 回收时重建一张新的。
     /// </summary>
-    internal readonly record struct Entry(ModelId Id, bool Upgraded, int Turn);
+    internal readonly record struct Entry(
+        ModelId Id,
+        bool Upgraded,
+        int Turn,
+        ModelId? EnchantmentId,
+        int EnchantmentAmount,
+        CardModel? Instance);
 
     private static readonly Dictionary<Player, List<Entry>> Log = new();
 
@@ -79,7 +85,14 @@ internal static class PassiveExhaustLog
             int turn = player.PlayerCombatState?.TurnNumber ?? 0;
 
             List<Entry> list = Get(player);
-            list.Add(new Entry(card.Id, card.IsUpgraded, turn));
+            EnchantmentModel? enchantment = card.Enchantment;
+            list.Add(new Entry(
+                card.Id,
+                card.IsUpgraded,
+                turn,
+                enchantment?.Id,
+                enchantment?.Amount ?? 0,
+                card));
 
             // 只留最近两个回合，避免长战斗里堆一堆失效引用
             list.RemoveAll(e => e.Turn < turn - 1);
@@ -88,6 +101,25 @@ internal static class PassiveExhaustLog
         {
             Main.Log.Error($"[{Main.ModId}] 被动消耗记录失败: {e}");
         }
+    }
+
+    /// <summary>
+    /// 本回合已经被动消耗掉的虚无牌张数。
+    /// 初心每回合只能捞 3 张，所以「本回合已经烧过几张」会占用名额，
+    /// 手牌高亮要据此减少（烧满 3 张就不再亮粉光）。
+    /// </summary>
+    internal static int CountThisTurn(Player player)
+    {
+        int turn = player.PlayerCombatState?.TurnNumber ?? 0;
+        if (turn <= 0) return 0;
+
+        int count = 0;
+        foreach (Entry entry in Get(player))
+        {
+            if (entry.Turn == turn) count++;
+        }
+
+        return count;
     }
 
     /// <summary>
@@ -113,11 +145,35 @@ internal static class PassiveExhaustLog
         var result = new List<CardModel>();
         foreach (Entry entry in picked)
         {
+            // 优先回手「原体」：同一场战斗里被消耗的牌仍然留在消耗牌堆、也仍登记在
+            // CombatState 里，直接搬回手牌即可 —— 这样忧郁这类「本场战斗内永久生效」
+            // 的改动、附魔、以及任何实例状态都不会丢，而且不算「生成新卡」，
+            // 不会触发创世之柱之类「印牌时」的判定。
+            if (entry.Instance is { } instance
+                && state.ContainsCard(instance)
+                && instance.Pile?.Type == PileType.Exhaust)
+            {
+                result.Add(instance);
+                continue;
+            }
+
             CardModel? canonical = ModelDb.GetByIdOrNull<CardModel>(entry.Id);
             if (canonical == null) continue;
 
             CardModel fresh = state.CreateCard(canonical, player);
             if (entry.Upgraded) fresh.UpgradeInternal();
+
+            // 附魔（例如「飘荡」）原版附在牌实例上，重建时要补回去，
+            // 否则玩家会觉得「回手的不是原来那张」。
+            if (entry.EnchantmentId is { } enchantmentId && entry.EnchantmentAmount > 0)
+            {
+                EnchantmentModel? enchantment = ModelDb.GetByIdOrNull<EnchantmentModel>(enchantmentId);
+                if (enchantment != null)
+                {
+                    CardCmd.Enchant(enchantment.ToMutable(), fresh, entry.EnchantmentAmount);
+                }
+            }
+
             result.Add(fresh);
         }
 

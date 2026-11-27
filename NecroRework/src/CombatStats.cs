@@ -29,6 +29,17 @@ internal static class CombatStats
         return total;
     }
 
-    /// <summary>每获得过 2 点召唤 → 额外 1 点伤害（向下取整）。</summary>
-    public static decimal SummonDamageBonus(CardModel card) => TotalSummon(card) / 2;
+    /// <summary>
+    /// 每获得过 Summon 点召唤 → 额外 1 点伤害（向下取整）。
+    /// 除数取自卡自己的 Summon 变量（出击是 2），改数值只需要改卡，不用动这里。
+    /// </summary>
+    public static decimal SummonDamageBonus(CardModel card)
+    {
+        if (card is null || card.IsCanonical) return 0m;
+
+        decimal step = card.DynamicVars.ContainsKey("Summon") ? card.DynamicVars.Summon.BaseValue : 2m;
+        if (step <= 0m) step = 2m;
+
+        return TotalSummon(card) / step;
+    }
 }

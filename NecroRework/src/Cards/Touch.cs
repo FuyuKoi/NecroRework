@@ -4,6 +4,7 @@ using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.ValueProps;
+using MegaCrit.Sts2.Core.HoverTips;
 
 namespace NecroRework.Cards;
 
@@ -34,6 +35,10 @@ public sealed class Touch : CardModel
     protected override bool ShouldGlowRedInternal =>
         !IsCanonical
         && (Owner.IsOstyMissing || (Owner.Osty is { IsAlive: true } osty && osty.CurrentHp <= OstyHpLoss));
+
+    // 卡面写「格挡」。
+    protected override IEnumerable<IHoverTip> ExtraHoverTips =>
+        [HoverTipFactory.Static(StaticHoverTip.Block)];
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {

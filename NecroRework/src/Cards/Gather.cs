@@ -1,10 +1,12 @@
-using MegaCrit.Sts2.Core.CardSelection;
+﻿using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Models.Powers;
 using NecroRework.Enchantments;
+using MegaCrit.Sts2.Core.HoverTips;
 
 namespace NecroRework.Cards;
 
@@ -21,11 +23,24 @@ public sealed class Gather : CardModel
 
     public override IEnumerable<CardKeyword> CanonicalKeywords => [CardKeyword.Ethereal];
 
+    /// <summary>聚拢给自己上的灾厄层数（卡面与提示共用这一份）。</summary>
+    private const int DoomToSelf = 5;
+
+    // 卡面写「灾厄」「飘荡」，把两个词条都挂出来。
+    protected override IEnumerable<IHoverTip> ExtraHoverTips =>
+    [
+        HoverTipFactory.FromPower<DoomPower>(DoomToSelf),
+        .. HoverTipFactory.FromEnchantment<DriftEnchantment>()
+    ];
+
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {
         await CreatureCmd.TriggerAnim(Owner.Creature, "Cast", Owner.Character.CastAnimDelay);
 
         await CardPileCmd.Draw(choiceContext, 1m, Owner);
+
+        // 抽 1 张牌后，自己也吃 5 层灾厄（2026-11-26 新增）。
+        await DoomUtil.ApplyToSelf(choiceContext, this, DoomToSelf);
 
         var prefs = new CardSelectorPrefs(
             new LocString("cards", "GATHER.selectionScreenPrompt"), 1);

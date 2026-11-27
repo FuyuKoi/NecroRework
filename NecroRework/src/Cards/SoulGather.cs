@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using MegaCrit.Sts2.Core.CardSelection;
@@ -7,8 +7,10 @@ using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Models.Cards;
 using NecroRework.Enchantments;
 using NecroRework.Powers;
+using MegaCrit.Sts2.Core.HoverTips;
 
 namespace NecroRework.Cards;
 
@@ -28,6 +30,13 @@ public sealed class SoulGather : CardModel
     }
 
     public override IEnumerable<CardKeyword> CanonicalKeywords => [CardKeyword.Ethereal];
+
+    // 卡面写「飘荡」「灵魂+」，挂附魔词条与升级版灵魂的展示。
+    protected override IEnumerable<IHoverTip> ExtraHoverTips =>
+    [
+        .. HoverTipFactory.FromEnchantment<DriftEnchantment>(),
+        HoverTipFactory.FromCard<Soul>(true)
+    ];
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {

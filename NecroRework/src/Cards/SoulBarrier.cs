@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using MegaCrit.Sts2.Core.CardSelection;
@@ -10,6 +10,7 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Cards;
 using MegaCrit.Sts2.Core.ValueProps;
 using NecroRework.Enchantments;
+using MegaCrit.Sts2.Core.HoverTips;
 
 namespace NecroRework.Cards;
 
@@ -33,6 +34,13 @@ public sealed class SoulBarrier : CardModel
     public override bool GainsBlock => true;
 
     public override IEnumerable<CardKeyword> CanonicalKeywords => [CardKeyword.Ethereal];
+
+    // 卡面写「飘荡」「灵魂」，挂附魔词条与灵魂卡牌展示。
+    protected override IEnumerable<IHoverTip> ExtraHoverTips =>
+    [
+        .. HoverTipFactory.FromEnchantment<DriftEnchantment>(),
+        HoverTipFactory.FromCard<Soul>()
+    ];
 
     protected override IEnumerable<DynamicVar> CanonicalVars => [new BlockVar(BaseBlock, ValueProp.Move)];
 

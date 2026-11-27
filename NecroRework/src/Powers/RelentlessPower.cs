@@ -1,8 +1,11 @@
-using MegaCrit.Sts2.Core.Combat;
+﻿using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Powers;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.HoverTips;
+using MegaCrit.Sts2.Core.Localization.DynamicVars;
+using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Monsters;
 using MegaCrit.Sts2.Core.Models.Powers;
@@ -21,8 +24,8 @@ public sealed class RelentlessPower : PowerModel
     /// <summary>触发一次易伤需要的推进次数（也就是计数器的初始值）。</summary>
     public const int HitsPerTrigger = 2;
 
-    /// <summary>每次给出易伤时顺带给它的召唤量。</summary>
-    public const decimal SummonOnVulnerable = 6m;
+    /// <summary>每次给出易伤时顺带给它的召唤量（升级前后都是 5，不做叠加）。</summary>
+    public const decimal SummonPerTrigger = 5m;
 
     [ThreadStatic] private static int _suppress;
 
@@ -39,6 +42,29 @@ public sealed class RelentlessPower : PowerModel
     public override PowerType Type => PowerType.Debuff;
 
     public override PowerStackType StackType => PowerStackType.Counter;
+
+    /// <summary>
+    /// 悬停里的两个数字：{Amount} 是每次触发给的易伤层数（多次打出会叠），
+    /// {Summon} 是每次触发的召唤量（固定 5，不随层数叠加）。
+    /// </summary>
+    public override LocString Description
+    {
+        get
+        {
+            int layers = Math.Max(1, Amount);
+            LocString loc = new LocString("powers", Id.Entry + ".description");
+            loc.Add("Amount", layers);
+            loc.Add("Summon", SummonPerTrigger);
+            return loc;
+        }
+    }
+
+    /// <summary>悬停时把「易伤」和「召唤」两条词条也列出来。</summary>
+    protected override IEnumerable<IHoverTip> ExtraHoverTips => new IHoverTip[2]
+    {
+        HoverTipFactory.FromPower<VulnerablePower>(Math.Max(1, Amount)),
+        HoverTipFactory.Static(StaticHoverTip.SummonDynamic, new DynamicVar[1] { new SummonVar(SummonPerTrigger) })
+    };
 
     public override async Task AfterDamageGiven(PlayerChoiceContext choiceContext, Creature dealer, DamageResult result,
         ValueProp props, Creature target, CardModel cardSource)
@@ -73,10 +99,10 @@ public sealed class RelentlessPower : PowerModel
 
         await PowerCmd.Apply<VulnerablePower>(choiceContext, Owner, Amount, Applier, null);
 
-        // 每次施加易伤的同时，再给施加者 6 点召唤。
+        // 每次施加易伤的同时给施加者召唤 5（固定值，多次打出不叠加，避免数值失控）。
         if (Applier?.Player is { } summoner)
         {
-            await OstyCmd.Summon(choiceContext, summoner, SummonOnVulnerable, this);
+            await OstyCmd.Summon(choiceContext, summoner, SummonPerTrigger, this);
         }
     }
 

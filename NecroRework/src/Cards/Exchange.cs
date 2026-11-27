@@ -1,4 +1,4 @@
-using MegaCrit.Sts2.Core.CardSelection;
+﻿using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
@@ -6,6 +6,7 @@ using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Powers;
+using MegaCrit.Sts2.Core.HoverTips;
 
 namespace NecroRework.Cards;
 
@@ -25,6 +26,13 @@ public sealed class Exchange : CardModel
 
     public override IEnumerable<CardKeyword> CanonicalKeywords =>
         [CardKeyword.Innate, CardKeyword.Retain, CardKeyword.Exhaust];
+
+    // 卡面写「虚无」「灾厄」，两个词条都挂出来。
+    protected override IEnumerable<IHoverTip> ExtraHoverTips =>
+    [
+        HoverTipFactory.FromKeyword(CardKeyword.Ethereal),
+        HoverTipFactory.FromPower<DoomPower>(DynamicVars.Doom.IntValue)
+    ];
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {

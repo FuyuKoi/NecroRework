@@ -1,9 +1,10 @@
-using MegaCrit.Sts2.Core.Commands;
+﻿using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 using NecroRework.Powers;
+using MegaCrit.Sts2.Core.HoverTips;
 
 namespace NecroRework.Cards;
 
@@ -21,6 +22,12 @@ public sealed class Continuation : CardModel
 
     protected override IEnumerable<DynamicVar> CanonicalVars =>
         [new EnergyVar(1), new IntVar("DoomMult", 2m)];
+
+    // 卡面写「能量」，挂能量词条。
+    protected override IEnumerable<IHoverTip> ExtraHoverTips =>
+    [
+        HoverTipFactory.ForEnergy(this)
+    ];
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {

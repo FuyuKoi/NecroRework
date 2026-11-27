@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -175,23 +175,84 @@ internal static class IntentPreview
 		// 亡魂牵引会拦下的牌（回合结束自动打出），它们既不进消耗堆、也不再触发飘荡的起防
 		List<CardModel> autoPlayed = CollectAutoPlayedCards(player);
 
-		int block = player.Block + ProjectedEndOfTurnBlock(player, autoPlayed) - ProjectedEndOfTurnSelfDamage(player);
-		if (block < 0)
+		// 回合末自伤（凋萎/灼伤/腐朽…）先吃格挡，但格挡不够吃掉的那部分不能直接丢掉——
+		// 以前这里是把 block 夹到 0，玩家 0 格挡时这笔伤害就凭空消失了，意图数字自然偏小。
+		// 现在把「没被格挡吃掉的量」记成 selfOverflow，稍后并进第一段攻击的数字里。
+		int selfDamage = ProjectedEndOfTurnSelfDamage(player);
+		int projectedBlock = player.Block + ProjectedEndOfTurnBlock(player, autoPlayed);
+		if (projectedBlock < 0)
 		{
-			block = 0;
+			projectedBlock = 0;
 		}
+
+		int absorbedSelf = Math.Min(projectedBlock, selfDamage);
+		int block = projectedBlock - absorbedSelf;
+		int selfOverflow = selfDamage - absorbedSelf;
 
 		// 这些牌在敌人动手之前就会被打出：先算它们的格挡/自伤/敌人触发
 		AutoPlayForecast forecast = ForecastAutoPlays(player, autoPlayed, combatState);
 		block += forecast.Block;
-		int preDamage = Math.Max(0, forecast.SelfDamage - block);
+		// preDamage = 自动打出的牌没被格挡吃掉的自伤 + 回合末状态牌没被格挡吃掉的自伤，
+		// 两者都发生在敌人动手之前，所以在第一段攻击里一起补上。
+		int preDamage = Math.Max(0, forecast.SelfDamage - block) + selfOverflow;
 		block = Math.Max(0, block - forecast.SelfDamage);
 		Creature osty = player.Player?.Osty;
 		int ostyHp = osty is { IsAlive: true } ? osty.CurrentHp : 0;
 
+		// 回合结束时玩家还会额外吃一批「灾厄」，它来自两张我们改过的卡：
+		//   · 延续（EnergyCarryPower）：剩余费用 × 层数 层的灾厄；
+		//   · 生与死（LifeAndDeathPower）：玩家接下来获得的灾厄由奥斯提承担，
+		//     而且奥斯提在承受这些灾厄时会「失去等量生命值」。
+		// 这两笔都发生在敌人动手之前（回合结束 → 灾厄结算 → 敌方回合），
+		// 所以必须先把它们算进去，否则意图数字会高估奥斯提的存活。
+		int doomFromCarry = 0;
+		if (player.GetPower<EnergyCarryPower>() is { } carry && carry.Amount > 0)
+		{
+			int energyLeft = player.Player?.PlayerCombatState?.Energy ?? 0;
+			if (energyLeft > 0)
+			{
+				doomFromCarry = energyLeft * carry.Amount;
+			}
+		}
+
+		// 「生与死」额度内的那部分：搬到奥斯提身上，并且让他失去等量生命值；
+		// 如果同时还有「相忘于川」，剩下的层数也会一并搬过去（但不再让他掉血）。
+		int doomToOsty = 0;
+		int doomLostHp = 0;
+		if (doomFromCarry > 0 && ostyHp > 0)
+		{
+			bool river = player.HasPower<RiverOfOblivionPower>();
+			int budget = player.GetPower<LifeAndDeathPower>() is { } lifeAndDeath ? Math.Max(0, lifeAndDeath.Amount) : 0;
+			doomLostHp = Math.Min(budget, doomFromCarry);
+			doomToOsty = river ? doomFromCarry : doomLostHp;
+		}
+
+		// 厄运之衣：每「一笔」灾厄施加事件触发一次，给固定的 ShroudPower.Amount 点格挡，
+		// 和这笔灾厄有多少层无关。
+		// 现在灾厄一律先落在自己身上（转移给奥斯提时 applier = null，不再重复触发），
+		// 所以延续这一笔无论转走多少、哪怕全转走，都只算一次。
+		if (doomFromCarry > 0)
+		{
+			int shroudBlockNow = player.GetPower<ShroudPower>()?.Amount ?? 0;
+			if (shroudBlockNow > 0)
+			{
+				block += shroudBlockNow;
+			}
+		}
+
+		// 生与死：额度内替骨妹扛下的那部分，会让他「失去等量生命值」。
+		if (ostyHp > 0 && doomLostHp > 0)
+		{
+			ostyHp -= doomLostHp;
+			if (ostyHp < 0)
+			{
+				ostyHp = 0;
+			}
+		}
+
 		// 灾厄 >= 当前生命值的奥斯提会在本回合结束时被灾厄带走，敌人打过来时它已经没了，
-		// 所以这里直接当作「没有奥斯提」来算。
-		if (ostyHp > 0 && osty != null && DoomUtil.DoomOf(osty) >= ostyHp)
+		// 所以这里直接当作「没有奥斯提」来算（含上面延续/生与死转移过来的那批）。
+		if (ostyHp > 0 && osty != null && DoomUtil.DoomOf(osty) + doomToOsty >= ostyHp)
 		{
 			ostyHp = 0;
 		}
@@ -399,7 +460,8 @@ internal static class IntentPreview
 			{
 				if (card.Enchantment is DriftEnchantment
 					&& card.Keywords.Contains(CardKeyword.Ethereal)
-					&& !autoPlayed.Contains(card))
+					&& !autoPlayed.Contains(card)
+					&& !MendWard.IsSuppressed(card))
 				{
 					projected += DriftBlock;
 				}
@@ -460,7 +522,8 @@ internal static class IntentPreview
 				break;
 			}
 
-			if (card.Keywords.Contains(CardKeyword.Ethereal))
+			// 被弥合点名保护的牌本回合不会因虚无而消耗，也就不会被亡魂牵引改成自动打出。
+			if (card.Keywords.Contains(CardKeyword.Ethereal) && !MendWard.IsSuppressed(card))
 			{
 				result.Add(card);
 			}

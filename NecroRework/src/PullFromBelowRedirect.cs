@@ -123,19 +123,19 @@ internal static class PullFromBelowRedirect
             // 「must be added to a CombatState」，整条回合循环会死（结束回合卡住）。
             CombatCardGuard.EnsureRegistered(card, "消耗前兜底");
 
-            // 「飘荡」：只要这张牌真的被送进消耗堆，就给 4 点格挡。
-            // 原先挂在 CardCmd.Exhaust 上，但回合结束时虚无牌自烧不经过它
-            // （直接走 CardPileCmd.Add），所以看起来「飘荡不生效」。这里统一在漏斗上处理。
-            if (card.Enchantment is Enchantments.DriftEnchantment && card.Pile?.Type != PileType.Exhaust)
+            // 我们自己在自动打出时产生的消耗，直接放行（否则套娃）
+            if (_busy)
             {
-                _ = GrantDriftBlock(card);
+                GrantDriftIfConsumed(card);
+                return true;
             }
 
-            // 我们自己在自动打出时产生的消耗，直接放行（否则套娃）
-            if (_busy) return true;
-
             var creature = card.Owner?.Creature;
-            if (creature == null || !creature.IsAlive) return true;
+            if (creature == null || !creature.IsAlive)
+            {
+                GrantDriftIfConsumed(card);
+                return true;
+            }
 
             var power = creature.GetPower<PullFromBelowPower>();
             bool ethereal = card.Keywords.Contains(CardKeyword.Ethereal);
@@ -146,17 +146,44 @@ internal static class PullFromBelowRedirect
                 Main.Log.Info($"[{Main.ModId}] 进消耗堆#{_pileTrace} {card.Id} 牌堆={card.Pile?.Type.ToString() ?? "无"} 虚无={ethereal} 正在打出={PlayingCards.Contains(card)} 亡魂牵引={power?.Amount.ToString() ?? "无"}");
             }
 
-            if (!ethereal) return true;
-            if (PlayingCards.Contains(card)) return true;
+            if (!ethereal)
+            {
+                GrantDriftIfConsumed(card);
+                return true;
+            }
+
+            if (PlayingCards.Contains(card))
+            {
+                GrantDriftIfConsumed(card);
+                return true;
+            }
 
             var pile = card.Pile?.Type;
-            if (pile != PileType.Hand && pile != PileType.Draw && pile != PileType.Discard) return true;
+            if (pile != PileType.Hand && pile != PileType.Draw && pile != PileType.Discard)
+            {
+                GrantDriftIfConsumed(card);
+                return true;
+            }
 
             if (power == null || power.Amount <= 0)
             {
                 // 没被亡魂牵引改成自动打出 → 这张牌真的会被消耗掉，
                 // 记进「初心的被动消耗记录」（回合结束时虚无牌自烧只走这一层）。
                 PassiveExhaustLog.Record(card);
+                GrantDriftIfConsumed(card);
+                return true;
+            }
+
+            // 走这里说明这张牌会被亡魂牵引改成「自动打出」，它**不会**进消耗堆，
+            // 所以飘荡的「被消耗时获得格挡」不该触发（也不在这里给格挡）。
+            //
+            // 但「被拦下的应该是哪一张」要跟玩家看到的一致：引擎烧牌的顺序是手牌**牌堆顺序**，
+            // 跟屏幕上的左右排布可能错位，所以这里再判一次——只有落在「最左边那 power.Amount 张
+            // 虚无牌」里的才改成自动打出，其余的照常真烧掉。
+            if (!IsInLeftmostWindow(card, power.Amount))
+            {
+                PassiveExhaustLog.Record(card);
+                GrantDriftIfConsumed(card);
                 return true;
             }
 
@@ -175,6 +202,58 @@ internal static class PullFromBelowRedirect
     {
         await Redirect(card, power);
         return default!;
+    }
+
+    /// <summary>
+    /// 这张牌是否落在「手牌里最左边的 power.Amount 张虚无牌」窗口内。
+    /// 引擎烧牌顺序跟屏幕左右排布不一致，所以判定必须按屏幕坐标来，
+    /// 这样玩家看到的「最左边那张被救下」才是真的。
+    /// </summary>
+    private static bool IsInLeftmostWindow(CardModel card, int slots)
+    {
+        if (slots <= 0) return false;
+
+        var owner = card.Owner;
+        if (owner == null) return false;
+
+        // 只对手牌里的牌做「最左边」判定；抽牌堆/弃牌堆里的虚无牌没有视觉顺序，照原样放行（真烧）。
+        if (card.Pile?.Type != PileType.Hand) return true;
+
+        List<CardModel> ordered = HandOrder.LeftToRight(owner);
+        var ethereals = new List<CardModel>();
+        foreach (CardModel handCard in ordered)
+        {
+            if (handCard.Keywords.Contains(CardKeyword.Ethereal))
+            {
+                ethereals.Add(handCard);
+            }
+        }
+
+        int window = Math.Min(slots, ethereals.Count);
+        for (int i = 0; i < window; i++)
+        {
+            if (ReferenceEquals(ethereals[i], card))
+            {
+                Main.Log.Info($"[{Main.ModId}] 亡魂牵引：{card.Id} 是手牌最左边的第 {i + 1} 张虚无牌（窗口 {window}），改为自动打出");
+                return true;
+            }
+        }
+
+        Main.Log.Info($"[{Main.ModId}] 亡魂牵引：{card.Id} 不在最左边 {window} 张虚无牌窗口内，按原版消耗");
+        return false;
+    }
+
+    /// <summary>
+    /// 「飘荡」：只有这张牌真的会被送进消耗堆时才给 4 点格挡。
+    /// 原先挂在 CardCmd.Exhaust 上，但回合结束时虚无牌自烧不经过它（直接走 CardPileCmd.Add），
+    /// 所以统一挪到这个漏斗里；同时又必须排除「被亡魂牵引改成自动打出」的牌——它们没被消耗。
+    /// </summary>
+    private static void GrantDriftIfConsumed(CardModel card)
+    {
+        if (card.Enchantment is Enchantments.DriftEnchantment && card.Pile?.Type != PileType.Exhaust)
+        {
+            _ = GrantDriftBlock(card);
+        }
     }
 
     /// <summary>「飘荡」被消耗时的 4 点格挡。</summary>
